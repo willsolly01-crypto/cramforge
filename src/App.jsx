@@ -17,6 +17,7 @@ import Account from "./Account.jsx";
 import { supabase } from "./supabase.js";
 import { activateSession } from "./api.js";
 import { useEffect } from "react";
+import { Analytics } from "@vercel/analytics/react";
 
 export default function App() {
   const [state, setState] = useState(loadState);
@@ -104,10 +105,17 @@ export default function App() {
   ];
 
   if (session === undefined) return null;
-  if (!session) return <Auth />;
+  if (!session) return (
+    <>
+      <Auth />
+      <Analytics />
+    </>
+  );
 
   return (
-    <div className="shell">
+    <>
+      <Analytics />
+      <div className="shell">
       <aside className="sidebar">
         <h1 className="wordmark">
           Cram<span className="red">Forge</span>
@@ -230,5 +238,6 @@ export default function App() {
         )}
       </main>
     </div>
+    </>
   );
 }

@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CramForge — Social Media Post Templates</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,700;0,800;1,700;1,800&family=IBM+Plex+Mono:wght@400;700&family=Inter:wght@400;500;600;700;800&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #e8e8e4;
+    font-family: 'Inter', sans-serif;
+    padding: 40px;
+    min-height: 100vh;
+  }
+
+  h1 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #888;
+    margin-bottom: 40px;
+    text-align: center;
+  }
+
+  .row {
+    display: flex;
+    gap: 40px;
+    margin-bottom: 60px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .card-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .card-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #888;
+  }
+
+  /* 1:1 square — 1080×1080 represented at 360px */
+  .post {
+    width: 360px;
+    height: 360px;
+    position: relative;
+    overflow: hidden;
+    border-radius: 4px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+  }
+
+  /* 4:5 portrait — 1080×1350 represented at 360px wide */
+  .post-portrait {
+    width: 360px;
+    height: 450px;
+  }
+
+  /* 9:16 story — 1080×1920 represented at 210px */
+  .post-story {
+    width: 210px;
+    height: 373px;
+  }
+
+  /* ═══════════════════════════════════════
+     POST 1 — Dark + Big Quote (square)
+  ═══════════════════════════════════════ */
+  .p1 {
+    background: #1a2238;
+  }
+  .p1::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+    background-size: 45px 45px;
+  }
+  .p1 .tag {
+    position: absolute;
+    top: 20px; left: 20px;
+    background: #d7263d;
+    color: #fff;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 5px 9px;
+    border-radius: 3px;
+  }
+  .p1 .brand {
+    position: absolute;
+    top: 20px; right: 20px;
+    font-family: 'Spectral', serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.4);
+    letter-spacing: -0.01em;
+  }
+  .p1 .quote {
+    position: absolute;
+    bottom: 24px; left: 22px; right: 22px;
+    font-family: 'Spectral', serif;
+    font-size: 32px;
+    font-weight: 800;
+    line-height: 1.05;
+    color: #fff;
+  }
+  .p1 .quote em { color: #ffe45c; font-style: italic; }
+  .p1 .sub {
+    position: absolute;
+    bottom: 0; left: 22px; right: 22px;
+    padding-bottom: 22px;
+    /* pushed by quote height — adjust via transform */
+    display: none;
+  }
+  .p1 .url {
+    position: absolute;
+    bottom: 18px; right: 20px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.3);
+  }
+
+  /* ═══════════════════════════════════════
+     POST 2 — Red + Steps (square)
+  ═══════════════════════════════════════ */
+  .p2 { background: #d7263d; }
+  .p2::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: repeating-linear-gradient(
+      -45deg,
+      transparent, transparent 22px,
+      rgba(255,255,255,0.06) 22px, rgba(255,255,255,0.06) 23px
+    );
+  }
+  .p2 .brand {
+    position: absolute;
+    top: 18px; left: 20px;
+    font-family: 'Spectral', serif;
+    font-size: 15px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.55);
+  }
+  .p2 .eyebrow {
+    position: absolute;
+    top: 18px; right: 20px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.45);
+  }
+  .p2 .main {
+    position: absolute;
+    top: 55px; left: 20px; right: 20px;
+  }
+  .p2 .heading {
+    font-family: 'Spectral', serif;
+    font-size: 26px;
+    font-weight: 800;
+    line-height: 1.1;
+    color: #fff;
+    margin-bottom: 16px;
+  }
+  .p2 .step-list { list-style: none; }
+  .p2 .step-item {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin-bottom: 10px;
+  }
+  .p2 .step-n {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    background: rgba(255,255,255,0.2);
+    color: #fff;
+    border-radius: 2px;
+    padding: 2px 5px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .p2 .step-txt {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    color: rgba(255,255,255,0.9);
+    line-height: 1.4;
+  }
+  .p2 .step-txt strong { font-weight: 700; color: #fff; }
+
+  .p2 .cta-pill {
+    position: absolute;
+    bottom: 20px; left: 20px;
+    background: #ffe45c;
+    color: #1a2238;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 8px 14px;
+    border-radius: 99px;
+  }
+  .p2 .url {
+    position: absolute;
+    bottom: 22px; right: 20px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.4);
+  }
+
+  /* ═══════════════════════════════════════
+     POST 3 — Cream + Social proof (square)
+  ═══════════════════════════════════════ */
+  .p3 { background: #fbfbf8; }
+  .p3 .red-bar {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 6px;
+    background: #d7263d;
+  }
+  .p3 .brand {
+    position: absolute;
+    top: 20px; left: 20px;
+    font-family: 'Spectral', serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: #1a2238;
+  }
+  .p3 .brand span { color: #d7263d; }
+  .p3 .badge {
+    position: absolute;
+    top: 18px; right: 20px;
+    background: #1a2238;
+    color: #ffe45c;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 4px 8px;
+    border-radius: 2px;
+    transform: rotate(1.5deg);
+  }
+  .p3 .stat-area {
+    position: absolute;
+    top: 60px; left: 20px; right: 20px;
+  }
+  .p3 .big-stat {
+    font-family: 'Spectral', serif;
+    font-size: 70px;
+    font-weight: 800;
+    line-height: 1;
+    color: #1a2238;
+    letter-spacing: -0.03em;
+  }
+  .p3 .big-stat span { color: #d7263d; }
+  .p3 .stat-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 17px;
+    font-weight: 600;
+    color: #1a2238;
+    margin-top: 4px;
+    line-height: 1.3;
+  }
+  .p3 .stat-sub {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    color: #4a5168;
+    margin-top: 6px;
+    line-height: 1.5;
+  }
+  .p3 .bottom-strip {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    background: #1a2238;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .p3 .bottom-text {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.5);
+  }
+  .p3 .bottom-url {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  /* ═══════════════════════════════════════
+     POST 4 — Story format
+  ═══════════════════════════════════════ */
+  .p4 { background: #1a2238; }
+  .p4::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 80% 20%, rgba(215,38,61,0.25) 0%, transparent 60%),
+      radial-gradient(ellipse at 20% 80%, rgba(215,38,61,0.12) 0%, transparent 50%);
+  }
+  .p4 .story-eyebrow {
+    position: absolute;
+    top: 22px; left: 0; right: 0;
+    text-align: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.3);
+  }
+  .p4 .story-brand {
+    position: absolute;
+    top: 36px; left: 0; right: 0;
+    text-align: center;
+    font-family: 'Spectral', serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.6);
+    letter-spacing: -0.01em;
+  }
+  .p4 .story-main {
+    position: absolute;
+    top: 80px; left: 18px; right: 18px;
+  }
+  .p4 .story-headline {
+    font-family: 'Spectral', serif;
+    font-size: 28px;
+    font-weight: 800;
+    line-height: 1.08;
+    color: #fff;
+    text-align: center;
+  }
+  .p4 .story-headline em { font-style: italic; color: #ffe45c; }
+  .p4 .divider-line {
+    position: absolute;
+    top: 185px; left: 18px; right: 18px;
+    height: 1px;
+    background: rgba(255,255,255,0.1);
+  }
+  .p4 .story-features {
+    position: absolute;
+    top: 196px; left: 18px; right: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+  .p4 .feat {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .p4 .feat-icon {
+    font-size: 13px;
+    flex-shrink: 0;
+    width: 20px;
+    text-align: center;
+  }
+  .p4 .feat-text {
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    color: rgba(255,255,255,0.75);
+    line-height: 1.4;
+  }
+  .p4 .feat-text strong { color: #fff; font-weight: 600; }
+  .p4 .story-cta {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    background: #d7263d;
+    padding: 14px 18px;
+    text-align: center;
+  }
+  .p4 .story-cta-url {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    display: block;
+  }
+  .p4 .story-cta-sub {
+    font-family: 'Inter', sans-serif;
+    font-size: 10px;
+    color: rgba(255,255,255,0.7);
+    margin-top: 2px;
+  }
+
+  /* ═══════════════════════════════════════
+     POST 5 — Quick Study / gamification (portrait)
+  ═══════════════════════════════════════ */
+  .p5 { background: #1a2238; }
+  .p5 .top-accent {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 5px;
+    background: linear-gradient(90deg, #d7263d, #ff6b35);
+  }
+  .p5 .brand {
+    position: absolute;
+    top: 18px; left: 18px;
+    font-family: 'Spectral', serif;
+    font-size: 15px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.5);
+  }
+  .p5 .mode-badge {
+    position: absolute;
+    top: 16px; right: 18px;
+    background: linear-gradient(135deg, #d7263d, #ff6b35);
+    color: #fff;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 4px 8px;
+    border-radius: 99px;
+  }
+
+  /* Mock phone card in the middle */
+  .p5 .phone-card {
+    position: absolute;
+    top: 52px; left: 18px; right: 18px;
+    background: #121828;
+    border-radius: 10px;
+    padding: 16px;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .p5 .card-q {
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.85);
+    line-height: 1.45;
+    margin-bottom: 12px;
+  }
+  .p5 .option {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    padding: 7px 10px;
+    margin-bottom: 6px;
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    color: rgba(255,255,255,0.7);
+  }
+  .p5 .option.correct {
+    background: rgba(34,197,94,0.15);
+    border-color: rgba(34,197,94,0.4);
+    color: #86efac;
+  }
+  .p5 .option.wrong {
+    background: rgba(215,38,61,0.12);
+    border-color: rgba(215,38,61,0.25);
+    color: rgba(255,255,255,0.35);
+    text-decoration: line-through;
+    text-decoration-color: rgba(215,38,61,0.4);
+  }
+  .p5 .opt-letter {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    font-weight: 700;
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 9px;
+  }
+  .p5 .option.correct .opt-letter { background: rgba(34,197,94,0.3); color: #86efac; }
+  .p5 .xp-pop {
+    position: absolute;
+    top: 52px; right: 10px;
+    background: #ffe45c;
+    color: #1a2238;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 4px 7px;
+    border-radius: 4px;
+    transform: rotate(-4deg);
+  }
+  .p5 .stats-row {
+    position: absolute;
+    left: 18px; right: 18px;
+    bottom: 110px;
+    display: flex;
+    gap: 8px;
+  }
+  .p5 .stat-box {
+    flex: 1;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px;
+    padding: 8px;
+    text-align: center;
+  }
+  .p5 .stat-val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+    display: block;
+  }
+  .p5 .stat-lbl {
+    font-family: 'Inter', sans-serif;
+    font-size: 8px;
+    color: rgba(255,255,255,0.35);
+    display: block;
+    margin-top: 1px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .p5 .combo-badge {
+    background: linear-gradient(135deg, #d7263d, #ff6b35);
+    color: #fff;
+  }
+  .p5 .bottom-cta {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    padding: 16px 18px 20px;
+    text-align: center;
+  }
+  .p5 .bc-headline {
+    font-family: 'Spectral', serif;
+    font-size: 18px;
+    font-weight: 800;
+    color: #fff;
+    line-height: 1.15;
+    margin-bottom: 4px;
+  }
+  .p5 .bc-headline em { color: #ffe45c; font-style: italic; }
+  .p5 .bc-sub {
+    font-family: 'Inter', sans-serif;
+    font-size: 10px;
+    color: rgba(255,255,255,0.45);
+  }
+  .p5 .bc-url {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    color: #d7263d;
+    margin-top: 6px;
+    display: block;
+  }
+
+</style>
+</head>
+<body>
+<h1>CramForge — Social Media Templates &nbsp;·&nbsp; Open in browser, screenshot each post at correct export size</h1>
+
+<div class="row">
+
+  <!-- POST 1: Bold quote, dark -->
+  <div class="card-wrap">
+    <span class="card-label">Post 1 — Square 1080×1080 — Dark / Quote</span>
+    <div class="post p1">
+      <div class="tag">Study smarter</div>
+      <div class="brand">CramForge</div>
+      <div class="quote">
+        Your notes.<br>
+        <em>Infinite</em><br>
+        questions.
+      </div>
+      <div class="url">cramforge.app</div>
+    </div>
+  </div>
+
+  <!-- POST 2: Red / How it works -->
+  <div class="card-wrap">
+    <span class="card-label">Post 2 — Square 1080×1080 — Red / How It Works</span>
+    <div class="post p2">
+      <div class="brand">CramForge</div>
+      <div class="eyebrow">How it works</div>
+      <div class="main">
+        <p class="heading">From notes to<br>exam paper<br>in 60 seconds</p>
+        <ul class="step-list">
+          <li class="step-item">
+            <span class="step-n">01</span>
+            <span class="step-txt"><strong>Upload</strong> your lecture notes or slides</span>
+          </li>
+          <li class="step-item">
+            <span class="step-n">02</span>
+            <span class="step-txt"><strong>Generate</strong> exam-style questions</span>
+          </li>
+          <li class="step-item">
+            <span class="step-n">03</span>
+            <span class="step-txt"><strong>Write</strong> your answer, get AI marking</span>
+          </li>
+          <li class="step-item">
+            <span class="step-n">04</span>
+            <span class="step-txt"><strong>Export</strong> a branded practice paper</span>
+          </li>
+        </ul>
+      </div>
+      <div class="cta-pill">Free to start →</div>
+      <div class="url">cramforge.app</div>
+    </div>
+  </div>
+
+  <!-- POST 3: Light / Social proof -->
+  <div class="card-wrap">
+    <span class="card-label">Post 3 — Square 1080×1080 — Cream / Numbers</span>
+    <div class="post p3">
+      <div class="red-bar"></div>
+      <div class="brand">Cram<span>Forge</span></div>
+      <div class="badge">AI exam prep</div>
+      <div class="stat-area">
+        <div class="big-stat">∞<span>×</span></div>
+        <div class="stat-label">More practice questions<br>than any textbook</div>
+        <div class="stat-sub">Your notes. Your syllabus.<br>Unlimited exam questions — generated in seconds.</div>
+      </div>
+      <div class="bottom-strip">
+        <span class="bottom-text">Free to start</span>
+        <span class="bottom-url">cramforge.app</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="row">
+
+  <!-- POST 4: Story -->
+  <div class="card-wrap">
+    <span class="card-label">Story 1080×1920 — Dark / Feature list</span>
+    <div class="post post-story p4">
+      <div class="story-eyebrow">AI Study App</div>
+      <div class="story-brand">CramForge</div>
+      <div class="story-main">
+        <p class="story-headline">
+          Stop re-reading.<br>
+          Start getting<br>
+          <em>tested.</em>
+        </p>
+      </div>
+      <div class="divider-line"></div>
+      <div class="story-features">
+        <div class="feat">
+          <span class="feat-icon">📄</span>
+          <span class="feat-text"><strong>Upload any notes</strong> — PDFs, slides, typed text</span>
+        </div>
+        <div class="feat">
+          <span class="feat-icon">🤖</span>
+          <span class="feat-text"><strong>AI generates exam questions</strong> on your content</span>
+        </div>
+        <div class="feat">
+          <span class="feat-icon">✍️</span>
+          <span class="feat-text"><strong>Write answers</strong> — get marked like a real exam</span>
+        </div>
+        <div class="feat">
+          <span class="feat-icon">⚡</span>
+          <span class="feat-text"><strong>Quick Study mode</strong> — 5 MCQs on your phone, anytime</span>
+        </div>
+        <div class="feat">
+          <span class="feat-icon">📊</span>
+          <span class="feat-text"><strong>Track weak topics</strong> — see exactly what to fix</span>
+        </div>
+      </div>
+      <div class="story-cta">
+        <span class="story-cta-url">cramforge.app</span>
+        <p class="story-cta-sub">Free to start · No credit card</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- POST 5: Quick Study gamification portrait -->
+  <div class="card-wrap">
+    <span class="card-label">Post 4 — Portrait 1080×1350 — Quick Study / Gamification</span>
+    <div class="post post-portrait p5">
+      <div class="top-accent"></div>
+      <div class="brand">CramForge</div>
+      <div class="mode-badge">⚡ Quick Study</div>
+      <div class="phone-card">
+        <div class="card-q">Which organelle is responsible for producing ATP through cellular respiration?</div>
+        <div class="option wrong"><span class="opt-letter">A</span> Ribosome</div>
+        <div class="option wrong"><span class="opt-letter">B</span> Golgi apparatus</div>
+        <div class="option correct"><span class="opt-letter">C</span> Mitochondria ✓</div>
+        <div class="option"><span class="opt-letter">D</span> Endoplasmic reticulum</div>
+      </div>
+      <div class="xp-pop">+20 XP 🔥</div>
+      <div class="stats-row">
+        <div class="stat-box">
+          <span class="stat-val">4</span>
+          <span class="stat-lbl">Streak</span>
+        </div>
+        <div class="stat-box combo-badge">
+          <span class="stat-val">2×</span>
+          <span class="stat-lbl">Combo</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-val">240</span>
+          <span class="stat-lbl">XP Today</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-val">87%</span>
+          <span class="stat-lbl">Accuracy</span>
+        </div>
+      </div>
+      <div class="bottom-cta">
+        <p class="bc-headline">Study from<br>your <em>phone.</em></p>
+        <p class="bc-sub">5 questions. 2 minutes. Build your streak.</p>
+        <span class="bc-url">cramforge.app</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

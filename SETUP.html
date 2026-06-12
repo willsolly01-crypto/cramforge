@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CramForge — Setup Guide</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+  :root {
+    --navy: #1a2238;
+    --red: #d7263d;
+    --yellow: #ffe45c;
+    --cream: #fbfbf8;
+    --muted: #4a5168;
+    --border: rgba(26,34,56,0.12);
+    --green: #22c55e;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--cream);
+    font-family: 'Inter', sans-serif;
+    color: var(--navy);
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  .header {
+    background: var(--navy);
+    padding: 28px 0 24px;
+    text-align: center;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+  }
+  .header-wordmark {
+    font-family: 'Inter', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.02em;
+    margin-bottom: 4px;
+  }
+  .header-wordmark span { color: var(--red); }
+  .header-sub {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.4);
+    margin-bottom: 16px;
+  }
+
+  /* Progress bar */
+  .progress-wrap {
+    max-width: 500px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+  .progress-bar-bg {
+    height: 6px;
+    background: rgba(255,255,255,0.12);
+    border-radius: 99px;
+    overflow: hidden;
+    margin-bottom: 6px;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: var(--green);
+    border-radius: 99px;
+    transition: width 0.4s ease;
+  }
+  .progress-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: rgba(255,255,255,0.4);
+    text-align: right;
+  }
+
+  /* ── Main content ── */
+  .main {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* ── Pre-flight ── */
+  .preflight {
+    background: var(--navy);
+    border-radius: 10px;
+    padding: 24px 28px;
+    margin-bottom: 40px;
+    color: #fff;
+  }
+  .preflight h2 {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.4);
+    font-family: 'IBM Plex Mono', monospace;
+    margin-bottom: 16px;
+  }
+  .preflight-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  @media (max-width: 500px) {
+    .preflight-grid { grid-template-columns: 1fr; }
+  }
+  .preflight-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 6px;
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: background 0.15s;
+    border: 1.5px solid transparent;
+  }
+  .preflight-item:hover { background: rgba(255,255,255,0.09); }
+  .preflight-item.done {
+    background: rgba(34,197,94,0.12);
+    border-color: rgba(34,197,94,0.3);
+  }
+  .pf-check {
+    width: 18px; height: 18px;
+    border-radius: 4px;
+    border: 2px solid rgba(255,255,255,0.25);
+    flex-shrink: 0;
+    margin-top: 1px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    transition: all 0.15s;
+  }
+  .preflight-item.done .pf-check {
+    background: var(--green);
+    border-color: var(--green);
+    color: #fff;
+  }
+  .pf-text {}
+  .pf-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 2px;
+  }
+  .pf-sub {
+    font-size: 11px;
+    color: rgba(255,255,255,0.4);
+    line-height: 1.4;
+  }
+  .pf-link {
+    color: rgba(255,255,255,0.35);
+    font-size: 11px;
+    text-decoration: none;
+  }
+  .pf-link:hover { color: rgba(255,255,255,0.6); text-decoration: underline; }
+
+  /* ── Steps ── */
+  .step-block {
+    margin-bottom: 28px;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .step-block.done { border-color: rgba(34,197,94,0.35); }
+  .step-block.done .step-header { background: rgba(34,197,94,0.06); }
+
+  .step-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 18px 22px;
+    cursor: pointer;
+    background: #fff;
+    border-bottom: 1.5px solid var(--border);
+    user-select: none;
+    transition: background 0.15s;
+  }
+  .step-header:hover { background: rgba(26,34,56,0.02); }
+  .step-block.done .step-header { border-bottom-color: rgba(34,197,94,0.2); }
+
+  .step-num-badge {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    background: rgba(26,34,56,0.07);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.2s;
+  }
+  .step-block.done .step-num-badge {
+    background: var(--green);
+    color: #fff;
+  }
+
+  .step-header-text { flex: 1 }
+  .step-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--navy);
+    margin-bottom: 2px;
+  }
+  .step-subtitle {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .step-chevron {
+    font-size: 14px;
+    color: var(--muted);
+    transition: transform 0.25s;
+    flex-shrink: 0;
+  }
+  .step-block.open .step-chevron { transform: rotate(180deg); }
+
+  /* Step body */
+  .step-body {
+    display: none;
+    padding: 22px 22px 20px;
+    background: #fff;
+  }
+  .step-block.open .step-body { display: block; }
+
+  /* Instructions */
+  .instruction {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.65;
+    margin-bottom: 16px;
+  }
+  .instruction strong { color: var(--navy); font-weight: 600; }
+  .instruction a { color: var(--red); }
+
+  /* Code block */
+  .code-block {
+    background: var(--navy);
+    border-radius: 7px;
+    padding: 14px 16px;
+    margin: 12px 0;
+    position: relative;
+    overflow: hidden;
+  }
+  .code-block pre {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    color: rgba(255,255,255,0.85);
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .code-block pre .comment { color: rgba(255,255,255,0.3); }
+  .code-block pre .key { color: #86efac; }
+  .code-block pre .val { color: #fde68a; }
+  .copy-btn {
+    position: absolute;
+    top: 10px; right: 10px;
+    background: rgba(255,255,255,0.1);
+    border: none;
+    color: rgba(255,255,255,0.5);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .copy-btn:hover { background: rgba(255,255,255,0.18); color: #fff; }
+  .copy-btn.copied { background: rgba(34,197,94,0.25); color: #86efac; }
+
+  /* Sub-checklist */
+  .sub-tasks { margin: 14px 0; }
+  .sub-task {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+  }
+  .sub-task:last-child { border-bottom: none; }
+  .sub-check {
+    width: 20px; height: 20px;
+    border-radius: 5px;
+    border: 2px solid var(--border);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    margin-top: 1px;
+    transition: all 0.15s;
+    background: #fff;
+  }
+  .sub-task.done .sub-check {
+    background: var(--green);
+    border-color: var(--green);
+    color: #fff;
+  }
+  .sub-task-text {}
+  .sub-task-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--navy);
+    line-height: 1.4;
+    margin-bottom: 2px;
+    transition: opacity 0.15s;
+  }
+  .sub-task.done .sub-task-title {
+    text-decoration: line-through;
+    opacity: 0.4;
+  }
+  .sub-task-desc {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  /* Alert box */
+  .alert {
+    border-radius: 7px;
+    padding: 12px 16px;
+    margin: 14px 0;
+    font-size: 13px;
+    line-height: 1.55;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .alert-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+  .alert.info { background: rgba(26,34,56,0.05); color: var(--muted); }
+  .alert.warn { background: rgba(215,38,61,0.07); color: #8b1a2a; }
+  .alert.tip { background: rgba(255,228,92,0.2); color: #7a6500; }
+
+  /* Mark done button */
+  .mark-done-btn {
+    display: block;
+    width: 100%;
+    margin-top: 20px;
+    padding: 12px;
+    background: rgba(34,197,94,0.08);
+    border: 1.5px solid rgba(34,197,94,0.25);
+    border-radius: 8px;
+    color: #15803d;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+  }
+  .mark-done-btn:hover { background: rgba(34,197,94,0.15); border-color: rgba(34,197,94,0.4); }
+  .step-block.done .mark-done-btn {
+    background: rgba(34,197,94,0.15);
+    border-color: var(--green);
+    color: #15803d;
+  }
+
+  /* SQL order table */
+  .sql-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0;
+    font-size: 13px;
+  }
+  .sql-table th {
+    text-align: left;
+    padding: 8px 12px;
+    background: rgba(26,34,56,0.05);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-bottom: 1.5px solid var(--border);
+  }
+  .sql-table td {
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--muted);
+    vertical-align: top;
+  }
+  .sql-table td:first-child {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--navy);
+    white-space: nowrap;
+    width: 30px;
+  }
+  .sql-table td:nth-child(2) {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--red);
+  }
+  .sql-table tr.sql-done td { opacity: 0.35; text-decoration: line-through; }
+  .sql-table tr:last-child td { border-bottom: none; }
+  .sql-table tr { cursor: pointer; }
+  .sql-table tr:hover td { background: rgba(26,34,56,0.02); }
+
+  /* Env table */
+  .env-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0;
+    font-size: 12px;
+  }
+  .env-table th {
+    text-align: left;
+    padding: 7px 10px;
+    background: rgba(26,34,56,0.05);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-bottom: 1.5px solid var(--border);
+  }
+  .env-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+    line-height: 1.5;
+  }
+  .env-table td:first-child {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #15803d;
+    white-space: nowrap;
+  }
+  .env-table td:nth-child(2) {
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .env-table td:last-child {
+    color: var(--navy);
+    font-size: 11px;
+  }
+  .env-table tr:last-child td { border-bottom: none; }
+
+  /* Final celebrate */
+  .celebrate {
+    text-align: center;
+    padding: 48px 24px;
+    background: var(--navy);
+    border-radius: 12px;
+    margin-top: 12px;
+    display: none;
+  }
+  .celebrate.show { display: block; }
+  .celebrate-emoji { font-size: 48px; margin-bottom: 12px; display: block; }
+  .celebrate h2 {
+    font-family: 'Inter', sans-serif;
+    font-size: 24px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 8px;
+  }
+  .celebrate p {
+    font-size: 15px;
+    color: rgba(255,255,255,0.55);
+    margin-bottom: 20px;
+  }
+  .celebrate a {
+    display: inline-block;
+    background: var(--red);
+    color: #fff;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 12px 24px;
+    border-radius: 7px;
+    text-decoration: none;
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-wordmark">Cram<span>Forge</span></div>
+  <div class="header-sub">Setup Guide — Start here</div>
+  <div class="progress-wrap">
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progressFill" style="width:0%"></div>
+    </div>
+    <div class="progress-label" id="progressLabel">0 / 8 steps complete</div>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- PRE-FLIGHT -->
+  <div class="preflight">
+    <h2>Before you start — tick what you already have</h2>
+    <div class="preflight-grid">
+      <div class="preflight-item" onclick="togglePF(this)">
+        <div class="pf-check">✓</div>
+        <div class="pf-text">
+          <div class="pf-title">Node.js v18+</div>
+          <div class="pf-sub">Check: <code>node -v</code> in terminal<br><a class="pf-link" href="https://nodejs.org" target="_blank">nodejs.org →</a></div>
+        </div>
+      </div>
+      <div class="preflight-item" onclick="togglePF(this)">
+        <div class="pf-check">✓</div>
+        <div class="pf-text">
+          <div class="pf-title">Supabase account</div>
+          <div class="pf-sub">Project already created<br><a class="pf-link" href="https://supabase.com" target="_blank">supabase.com →</a></div>
+        </div>
+      </div>
+      <div class="preflight-item" onclick="togglePF(this)">
+        <div class="pf-check">✓</div>
+        <div class="pf-text">
+          <div class="pf-title">Anthropic API key</div>
+          <div class="pf-sub">Needs credits loaded<br><a class="pf-link" href="https://console.anthropic.com" target="_blank">console.anthropic.com →</a></div>
+        </div>
+      </div>
+      <div class="preflight-item" onclick="togglePF(this)">
+        <div class="pf-check">✓</div>
+        <div class="pf-text">
+          <div class="pf-title">Stripe account</div>
+          <div class="pf-sub">For paid subscriptions<br><a class="pf-link" href="https://stripe.com" target="_blank">stripe.com →</a></div>
+        </div>
+      </div>
+      <div class="preflight-item" onclick="togglePF(this)">
+        <div class="pf-check">✓</div>
+        <div class="pf-text">
+          <div class="pf-title">Vercel account</div>
+          <div class="pf-sub">Free — for hosting<br><a class="pf-link" href="https://vercel.com" target="_blank">vercel.com →</a></div>
+        </div>
+      </div>
+      <div class="preflight-item" onclick="togglePF(this)">
+        <div class="pf-check">✓</div>
+        <div class="pf-text">
+          <div class="pf-title">Git installed</div>
+          <div class="pf-sub">Check: <code>git -v</code> in terminal<br><a class="pf-link" href="https://git-scm.com" target="_blank">git-scm.com →</a></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEPS -->
+
+  <!-- STEP 1 -->
+  <div class="step-block" id="step1" onclick="toggleStep(this)">
+    <div class="step-header">
+      <div class="step-num-badge">1</div>
+      <div class="step-header-text">
+        <div class="step-title">Install dependencies</div>
+        <div class="step-subtitle">npm install · ~30 seconds</div>
+      </div>
+      <div class="step-chevron">▼</div>
+    </div>
+    <div class="step-body" onclick="event.stopPropagation()">
+      <p class="instruction">Open your terminal (Command Prompt or Terminal) and run these two commands:</p>
+      <div class="code-block">
+        <button class="copy-btn" onclick="copyCode(this, 'cd Downloads/cramforge-v2/cramforge')">Copy</button>
+        <pre>cd Downloads/cramforge-v2/cramforge</pre>
+      </div>
+      <div class="code-block">
+        <button class="copy-btn" onclick="copyCode(this, 'npm install')">Copy</button>
+        <pre>npm install</pre>
+      </div>
+      <div class="alert info">
+        <span class="alert-icon">ℹ️</span>
+        <span>This downloads React, pdfkit, Stripe, Supabase, and Vite. It'll take about 30 seconds and create a <strong>node_modules/</strong> folder.</span>
+      </div>
+      <p class="instruction">✅ Test it worked: run <code>npm run dev</code> — the app should open at <strong>http://localhost:5173</strong> (it'll show a login screen).</p>
+      <button class="mark-done-btn" onclick="markDone('step1')">✓ Mark step 1 complete</button>
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="step-block" id="step2">
+    <div class="step-header" onclick="toggleStep(this.parentElement)">
+      <div class="step-num-badge">2</div>
+      <div class="step-header-text">
+        <div class="step-title">Create your .env file</div>
+        <div class="step-subtitle">API keys and secrets</div>
+      </div>
+      <div class="step-chevron">▼</div>
+    </div>
+    <div class="step-body" onclick="event.stopPropagation()">
+      <p class="instruction">In your <strong>cramforge</strong> folder, create a new file called exactly <strong>.env</strong> (no extension). Paste this in:</p>
+      <div class="code-block">
+        <button class="copy-btn" onclick="copyCode(this, 'VITE_SUPABASE_URL=https://YOUR-PROJECT-ID.supabase.co\nVITE_SUPABASE_ANON_KEY=eyJ...your-anon-key...\nANTHROPIC_API_KEY=sk-ant-...your-key...\nSUPABASE_URL=https://YOUR-PROJECT-ID.supabase.co\nSUPABASE_ANON_KEY=eyJ...your-anon-key...\nSUPABASE_SERVICE_ROLE_KEY=eyJ...your-service-role-key...\nSTRIPE_SECRET_KEY=sk_test_...your-test-key...\nSTRIPE_PRICE_ID=price_...your-price-id...\nSTRIPE_WEBHOOK_SECRET=whsec_...(fill-in-after-step-4)')">Copy</button>
+        <pre><span class="key">VITE_SUPABASE_URL</span>=<span class="val">https://YOUR-PROJECT-ID.supabase.co</span>
+<span class="key">VITE_SUPABASE_ANON_KEY</span>=<span class="val">eyJ...your-anon-key...</span>
+<span class="key">ANTHROPIC_API_KEY</span>=<span class="val">sk-ant-...your-key...</span>
+<span class="key">SUPABASE_URL</span>=<span class="val">https://YOUR-PROJECT-ID.supabase.co</span>
+<span class="key">SUPABASE_ANON_KEY</span>=<span class="val">eyJ...your-anon-key...</span>
+<span class="key">SUPABASE_SERVICE_ROLE_KEY</span>=<span class="val">eyJ...service-role-key...</span>
+<span class="key">STRIPE_SECRET_KEY</span>=<span class="val">sk_test_...your-test-key...</span>
+<span class="key">STRIPE_PRICE_ID</span>=<span class="val">price_...fill-in-step-4...</span>
+<span class="key">STRIPE_WEBHOOK_SECRET</span>=<span class="val">whsec_...fill-in-step-4...</span></pre>
+      </div>
+
+      <p class="instruction" style="margin-top:18px"><strong>Where to find each value:</strong></p>
+      <table class="env-table">
+        <tr><th>Variable</th><th>Where to find it</th></tr>
+        <tr>
+          <td>VITE_SUPABASE_URL<br>SUPABASE_URL</td>
+          <td>Supabase dashboard → your project → <strong>Project Settings → API → Project URL</strong></td>
+        </tr>
+        <tr>
+          <td>VITE_SUPABASE_ANON_KEY<br>SUPABASE_ANON_KEY</td>
+          <td>Supabase → <strong>Project Settings → API → anon public</strong> key</td>
+        </tr>
+        <tr>
+          <td>SUPABASE_SERVICE_ROLE_KEY</td>
+          <td>Supabase → <strong>Project Settings → API → service_role secret</strong> key (keep this secret!)</td>
+        </tr>
+        <tr>
+          <td>ANTHROPIC_API_KEY</td>
+          <td><a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> → API Keys → Create new key</td>
+        </tr>
+        <tr>
+          <td>STRIPE_SECRET_KEY</td>
+          <td><a href="https://dashboard.stripe.com" target="_blank">dashboard.stripe.com</a> → Developers → API Keys → Secret key</td>
+        </tr>
+        <tr>
+          <td>STRIPE_PRICE_ID</td>
+          <td>Fill in after Step 4 (creating your Stripe product)</td>
+        </tr>
+        <tr>
+          <td>STRIPE_WEBHOOK_SECRET</td>
+          <td>Fill in after Step 4 (setting up webhook)</td>
+        </tr>
+      </table>
+      <div class="alert warn">
+        <span class="alert-icon">⚠️</span>
+        <span>Never commit your .env file to git. There's already a <strong>.gitignore</strong> in the project that excludes it — don't remove it.</span>
+      </div>
+      <button class="mark-done-btn" onclick="markDone('step2')">✓ Mark step 2 complete</button>
+    </div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="step-block" id="step3">
+    <div class="step-header" onclick="toggleStep(this.parentElement)">
+      <div class="step-num-badge">3</div>
+      <div class="step-header-text">
+        <div class="step-title">Run database migrations</div>
+        <div class="step-subtitle">Supabase SQL Editor · 9 files in order</div>
+      </div>
+      <div class="step-chevron">▼</div>
+    </div>
+    <div class="step-body" onclick="event.stopPropagation()">
+      <p class="instruction">Go to <strong><a href="https://supabase.com/dashboard" target="_blank">supabase.com/dashboard</a></strong> → your project → <strong>SQL Editor</strong> → click <strong>New query</strong>.</p>
+      <p class="instruction">For each file below: open the file in your cramforge folder, <strong>copy all the contents</strong>, paste into the SQL editor, click <strong>Run</strong>. Wait for the green tick, then do the next one.</p>
+      <div class="alert tip">
+        <span class="alert-icon">💡</span>
+        <span>The files are in your <strong>cramforge-v2/cramforge/</strong> folder. They end in <strong>.sql</strong>. Run them in the exact order listed.</span>
+      </div>
+      <table class="sql-table" id="sqlTable">
+        <tr><th>#</th><th>File</th><th>What it creates</th></tr>
+        <tr onclick="toggleSQL(this)" data-idx="0"><td>1</td><td>supabase-setup.sql</td><td>Core tables: profiles, usage</td></tr>
+        <tr onclick="toggleSQL(this)" data-idx="1"><td>2</td><td>supabase-monthly-usage-migration.sql</td><td>Monthly usage caps for Pro plan</td></tr>
+        <tr onclick="toggleSQL(this)" data-idx="2"><td>3</td><td>supabase-referral-migration.sql</td><td>Referral codes and bonuses</td></tr>
+        <tr onclick="toggleSQL(this)" data-idx="3"><td>4</td><td>supabase-user-data-migration.sql</td><td>Cross-device state sync</td></tr>
+        <tr onclick="toggleSQL(this)" data-idx="4"><td>5</td><td>supabase-shared-sets-migration.sql</td><td>Public question sets</td></tr>
+        <tr onclick="toggleSQL(this)" data-idx="5"><td>6</td><td>supabase-social-migration.sql</td><td>Usernames, study sessions, leaderboard</td></tr>
+        <tr onclick="toggleSQL(this)" data-idx="6"><td>7</td><td>supabase-classes-migration.sql</td><td>Tutor classes with join codes</td></tr>
+        <tr onclick="toggleSQL(this)" data-idx="7"><td>8</td><td>supabase-bank-migration.sql</td><td>Question bank features</td></tr>
+        <tr onclick="toggleSQL(this)" data-idx="8"><td>9</td><td>supabase-quick-study-migration.sql</td><td>XP columns + Quick Study RPC</td></tr>
+      </table>
+      <div class="alert info">
+        <span class="alert-icon">ℹ️</span>
+        <span>If you see a <strong>"column already exists"</strong> warning, that's fine — keep going. Each migration is safe to re-run.</span>
+      </div>
+      <p class="instruction">✅ Check it worked: Supabase → <strong>Table Editor</strong> — you should see tables including <code>profiles</code>, <code>usage</code>, <code>study_sessions</code>, <code>classes</code>.</p>
+      <button class="mark-done-btn" onclick="markDone('step3')">✓ Mark step 3 complete</button>
+    </div>
+  </div>
+
+  <!-- STEP 4 -->
+  <div class="step-block" id="step4">
+    <div class="step-header" onclick="toggleStep(this.parentElement)">
+      <div class="step-num-badge">4</div>
+      <div class="step-header-text">
+        <div class="step-title">Set up Stripe</div>
+        <div class="step-subtitle">Create product · Get price ID · Webhook</div>
+      </div>
+      <div class="step-chevron">▼</div>
+    </div>
+    <div class="step-body" onclick="event.stopPropagation()">
+      <div class="sub-tasks">
+        <div class="sub-task" onclick="toggleSubTask(this)">
+          <div class="sub-check">✓</div>
+          <div class="sub-task-text">
+            <div class="sub-task-title">Create a product in Stripe</div>
+            <div class="sub-task-desc">Stripe dashboard → Products → Add product. Name: "CramForge Pro". Price: $8.99/month, recurring, monthly. Save it.</div>
+          </div>
+        </div>
+        <div class="sub-task" onclick="toggleSubTask(this)">
+          <div class="sub-check">✓</div>
+          <div class="sub-task-text">
+            <div class="sub-task-title">Copy the Price ID into your .env</div>
+            <div class="sub-task-desc">After saving the product, you'll see a Price ID that starts with <code>price_1...</code> — copy it into your .env as <strong>STRIPE_PRICE_ID</strong>.</div>
+          </div>
+        </div>
+        <div class="sub-task" onclick="toggleSubTask(this)">
+          <div class="sub-check">✓</div>
+          <div class="sub-task-text">
+            <div class="sub-task-title">Skip the webhook for now (do it after deploy)</div>
+            <div class="sub-task-desc">The webhook needs your live Vercel URL, which you won't have until Step 5. Come back here after deploy.</div>
+          </div>
+        </div>
+      </div>
+      <button class="mark-done-btn" onclick="markDone('step4')">✓ Mark step 4 complete</button>
+    </div>
+  </div>
+
+  <!-- STEP 5 -->
+  <div class="step-block" id="step5">
+    <div class="step-header" onclick="toggleStep(this.parentElement)">
+      <div class="step-num-badge">5</div>
+      <div class="step-header-text">
+        <div class="step-title">Push to GitHub</div>
+        <div class="step-subtitle">git init · commit · push</div>
+      </div>
+      <div class="step-chevron">▼</div>
+    </div>
+    <div class="step-body" onclick="event.stopPropagation()">
+      <p class="instruction">Go to <a href="https://github.com/new" target="_blank"><strong>github.com/new</strong></a> and create a new <strong>private</strong> repository called <code>cramforge</code>. Don't add a README. Then in your terminal:</p>
+      <div class="code-block">
+        <button class="copy-btn" onclick="copyCode(this, 'cd Downloads/cramforge-v2/cramforge\ngit init\ngit add -A\ngit commit -m \"initial commit\"\ngit branch -M main\ngit remote add origin https://github.com/YOUR-USERNAME/cramforge.git\ngit push -u origin main')">Copy all</button>
+        <pre>cd Downloads/cramforge-v2/cramforge
+git init
+git add -A
+git commit -m "initial commit"
+git branch -M main
+git remote add origin https://github.com/<span class="val">YOUR-USERNAME</span>/cramforge.git
+git push -u origin main</pre>
+      </div>
+      <p class="instruction">Replace <code>YOUR-USERNAME</code> with your actual GitHub username. GitHub will ask you to log in the first time.</p>
+      <button class="mark-done-btn" onclick="markDone('step5')">✓ Mark step 5 complete</button>
+    </div>
+  </div>
+
+  <!-- STEP 6 -->
+  <div class="step-block" id="step6">
+    <div class="step-header" onclick="toggleStep(this.parentElement)">
+      <div class="step-num-badge">6</div>
+      <div class="step-header-text">
+        <div class="step-title">Deploy to Vercel</div>
+        <div class="step-subtitle">Import repo · Add env vars · Go live</div>
+      </div>
+      <div class="step-chevron">▼</div>
+    </div>
+    <div class="step-body" onclick="event.stopPropagation()">
+      <div class="sub-tasks">
+        <div class="sub-task" onclick="toggleSubTask(this)">
+          <div class="sub-check">✓</div>
+          <div class="sub-task-text">
+            <div class="sub-task-title">Import your GitHub repo on Vercel</div>
+            <div class="sub-task-desc">Go to <a href="https://vercel.com/new" target="_blank">vercel.com/new</a> → Import Git Repository → select your cramforge repo. Framework should auto-detect as Vite. Click Deploy.</div>
+          </div>
+        </div>
+        <div class="sub-task" onclick="toggleSubTask(this)">
+          <div class="sub-check">✓</div>
+          <div class="sub-task-text">
+            <div class="sub-task-title">Add all environment variables</div>
+            <div class="sub-task-desc">Vercel dashboard → your project → Settings → Environment Variables. Add every variable from your .env file (same names and values). Then click Redeploy.</div>
+          </div>
+        </div>
+        <div class="sub-task" onclick="toggleSubTask(this)">
+          <div class="sub-check">✓</div>
+          <div class="sub-task-text">
+            <div class="sub-task-title">Add Stripe webhook</div>
+            <div class="sub-task-desc">Stripe dashboard → Developers → Webhooks → Add endpoint. URL: <code>https://your-vercel-url.vercel.app/api/webhook</code>. Events: <code>checkout.session.completed</code> and <code>customer.subscription.deleted</code>. Copy the signing secret → add as <strong>STRIPE_WEBHOOK_SECRET</strong> in Vercel env vars → Redeploy.</div>
+          </div>
+        </div>
+      </div>
+      <button class="mark-done-btn" onclick="markDone('step6')">✓ Mark step 6 complete</button>
+    </div>
+  </div>
+
+  <!-- STEP 7 -->
+  <div class="step-block" id="step7">
+    <div class="step-header" onclick="toggleStep(this.parentElement)">
+      <div class="step-num-badge">7</div>
+      <div class="step-header-text">
+        <div class="step-title">Test everything works</div>
+        <div class="step-subtitle">Run through the feature checklist</div>
+      </div>
+      <div class="step-chevron">▼</div>
+    </div>
+    <div class="step-body" onclick="event.stopPropagation()">
+      <p class="instruction">Visit your Vercel URL and go through each of these:</p>
+      <div class="sub-tasks">
+        <div class="sub-task" onclick="toggleSubTask(this)">
+          <div class="sub-check">✓</div>
+          <div class="sub-task-text">
+            <div class="sub-task-title">Sign up for an account</div>
+            <div class="sub-task-desc">Check Supabase → Auth → Users — your email should appear</div>
+          </div>
+        </div>
+        <div class="sub-task" onclick="toggleSubTask(this)">
+          <div class="sub-check">✓</div>
+          <div class="sub-task-text">
+            <div class="sub-task-title">Add a unit → upload a PDF → ingest</div>
+            <div class="sub-task-desc">Should complete within 20–30 seconds and show "Notes ready"</div>
+          </div>
+        </div>
+        <div class="sub-task" onclick="toggleSubTask(this)">
+          <div class="sub-check">✓</div>
+          <div class="sub-task-text">
+            <div class="sub-task-title">Generate questions</div>
+            <div class="sub-task-desc">Hit Generate — questions should appear within 10 seconds</div>
+          </div>
+        </div>
+        <div class="sub-task" onclick="toggleSubTask(this)">
+          <div class="sub-check">✓</div>
+          <div class="sub-task-text">
+            <div class="sub-task-title">Mark an answer</div>
+            <div class="sub-task-desc">Write a response, submit — AI should return a mark and feedback</div>
+          </div>
+        </div>
+        <div class="sub-task" onclick="toggleSubTask(this)">
+          <div class="sub-check">✓</div>
+          <div class="sub-task-text">
+            <div class="sub-task-title">Quick Study mode</div>
+            <div class="sub-task-desc">Tap ⚡ Quick Study — 5 MCQ questions should load</div>
+          </div>
+        </div>
+        <div class="sub-task" onclick="toggleSubTask(this)">
+          <div class="sub-check">✓</div>
+          <div class="sub-task-text">
+            <div class="sub-task-title">Stripe checkout</div>
+            <div class="sub-task-desc">Upgrade to Pro — use test card <code>4242 4242 4242 4242</code>, any future date, any CVC</div>
+          </div>
+        </div>
+        <div class="sub-task" onclick="toggleSubTask(this)">
+          <div class="sub-check">✓</div>
+          <div class="sub-task-text">
+            <div class="sub-task-title">PDF export</div>
+            <div class="sub-task-desc">As Pro user — download a practice paper PDF</div>
+          </div>
+        </div>
+      </div>
+      <button class="mark-done-btn" onclick="markDone('step7')">✓ Mark step 7 complete</button>
+    </div>
+  </div>
+
+  <!-- STEP 8 -->
+  <div class="step-block" id="step8">
+    <div class="step-header" onclick="toggleStep(this.parentElement)">
+      <div class="step-num-badge">8</div>
+      <div class="step-header-text">
+        <div class="step-title">Install app on your phone</div>
+        <div class="step-subtitle">PWA — looks like a real app</div>
+      </div>
+      <div class="step-chevron">▼</div>
+    </div>
+    <div class="step-body" onclick="event.stopPropagation()">
+      <div class="sub-tasks">
+        <div class="sub-task" onclick="toggleSubTask(this)">
+          <div class="sub-check">✓</div>
+          <div class="sub-task-text">
+            <div class="sub-task-title">iPhone: Safari → Share → Add to Home Screen</div>
+            <div class="sub-task-desc">Open your Vercel URL in Safari. Tap the Share button (box with arrow at the bottom). Scroll down → "Add to Home Screen" → Add. Long-press the icon to see Quick Study shortcut.</div>
+          </div>
+        </div>
+        <div class="sub-task" onclick="toggleSubTask(this)">
+          <div class="sub-check">✓</div>
+          <div class="sub-task-text">
+            <div class="sub-task-title">Android: Chrome → Install banner or menu</div>
+            <div class="sub-task-desc">Open in Chrome. An "Install" banner should appear at the bottom. Or: three-dot menu → "Add to Home Screen". The app icon will appear on your home screen.</div>
+          </div>
+        </div>
+      </div>
+      <button class="mark-done-btn" onclick="markDone('step8')">✓ Mark step 8 complete</button>
+    </div>
+  </div>
+
+  <!-- CELEBRATE -->
+  <div class="celebrate" id="celebrate">
+    <span class="celebrate-emoji">🎉</span>
+    <h2>CramForge is live!</h2>
+    <p>All 8 steps done. Your app is deployed, the database is set up, and you're installed on your phone.</p>
+    <a href="https://cramforge.app" target="_blank">Open CramForge →</a>
+  </div>
+
+</div>
+
+<script>
+// ── State ──
+const STATE_KEY = 'cramforge_setup_v1';
+
+function loadState() {
+  try { return JSON.parse(localStorage.getItem(STATE_KEY) || '{}'); }
+  catch { return {}; }
+}
+function saveState(s) {
+  localStorage.setItem(STATE_KEY, JSON.stringify(s));
+}
+
+let state = loadState();
+
+// ── Pre-flight items ──
+function togglePF(el) {
+  el.classList.toggle('done');
+}
+
+// ── Step toggle (expand/collapse) ──
+function toggleStep(block) {
+  block.classList.toggle('open');
+}
+
+// ── Mark step done ──
+function markDone(id) {
+  const block = document.getElementById(id);
+  block.classList.add('done');
+  block.classList.remove('open');
+  state[id] = true;
+  saveState(state);
+  updateProgress();
+}
+
+// ── Sub-task toggle ──
+function toggleSubTask(el) {
+  el.classList.toggle('done');
+}
+
+// ── SQL row done ──
+function toggleSQL(row) {
+  row.classList.toggle('sql-done');
+}
+
+// ── Progress ──
+function updateProgress() {
+  const total = 8;
+  const done = Object.values(state).filter(Boolean).length;
+  const pct = Math.round((done / total) * 100);
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressLabel').textContent = done + ' / ' + total + ' steps complete';
+  if (done === total) {
+    document.getElementById('celebrate').classList.add('show');
+    document.getElementById('celebrate').scrollIntoView({ behavior: 'smooth' });
+  }
+}
+
+// ── Copy to clipboard ──
+function copyCode(btn, text) {
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = 'Copy';
+      btn.classList.remove('copied');
+    }, 1800);
+  });
+}
+
+// ── Restore state on load ──
+(function init() {
+  for (const [id, done] of Object.entries(state)) {
+    if (done) {
+      const el = document.getElementById(id);
+      if (el) el.classList.add('done');
+    }
+  }
+  // Open first incomplete step
+  for (let i = 1; i <= 8; i++) {
+    const id = 'step' + i;
+    if (!state[id]) {
+      const el = document.getElementById(id);
+      if (el) el.classList.add('open');
+      break;
+    }
+  }
+  updateProgress();
+})();
+</script>
+</body>
+</html>

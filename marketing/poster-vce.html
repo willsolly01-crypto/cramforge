@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CramForge — VCE Exam Revision Poster</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,600;0,700;0,800;1,700;1,800&family=IBM+Plex+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    width: 297mm;   /* A3 portrait */
+    height: 420mm;
+    background: #fbfbf8;
+    font-family: 'Inter', sans-serif;
+    color: #1a2238;
+    overflow: hidden;
+  }
+
+  @page {
+    size: A3 portrait;
+    margin: 0;
+  }
+  @media print {
+    body { width: 297mm; height: 420mm; }
+  }
+
+  .page {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+
+  /* ── Hero — full red ── */
+  .hero {
+    background: #d7263d;
+    padding: 14mm 14mm 12mm;
+    position: relative;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+
+  /* Diagonal grid overlay */
+  .hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 12mm,
+      rgba(255,255,255,0.05) 12mm,
+      rgba(255,255,255,0.05) 12.5mm
+    );
+  }
+
+  .hero-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8mm;
+    position: relative;
+    z-index: 1;
+  }
+
+  .wordmark {
+    font-family: 'Spectral', Georgia, serif;
+    font-size: 8mm;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.02em;
+  }
+
+  .exam-season-badge {
+    background: #ffe45c;
+    color: #1a2238;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 2.8mm;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 2mm 4mm;
+    border-radius: 1mm;
+    white-space: nowrap;
+  }
+
+  .hero-headline {
+    font-family: 'Spectral', Georgia, serif;
+    font-size: 30mm;
+    font-weight: 800;
+    line-height: 0.93;
+    color: #fff;
+    position: relative;
+    z-index: 1;
+  }
+  .hero-headline em {
+    font-style: italic;
+    color: #ffe45c;
+    display: block;
+  }
+
+  .hero-deck {
+    margin-top: 7mm;
+    font-family: 'Inter', sans-serif;
+    font-size: 5.5mm;
+    font-weight: 400;
+    color: rgba(255,255,255,0.82);
+    line-height: 1.55;
+    max-width: 220mm;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ── Dark strip ── */
+  .dark-strip {
+    background: #1a2238;
+    padding: 5mm 14mm;
+    display: flex;
+    align-items: center;
+    gap: 8mm;
+    flex-shrink: 0;
+  }
+  .dark-strip-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 3mm;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.4);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .dark-strip-subjects {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2mm;
+  }
+  .subj-pill {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 2.8mm;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: rgba(255,255,255,0.7);
+    background: rgba(255,255,255,0.1);
+    padding: 1.5mm 3mm;
+    border-radius: 1mm;
+  }
+
+  /* ── Body: three proof points ── */
+  .body {
+    flex: 1;
+    padding: 10mm 14mm;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .proof-row {
+    display: flex;
+    gap: 6mm;
+    padding: 7mm 0;
+    border-bottom: 1px solid rgba(26,34,56,0.1);
+    align-items: flex-start;
+  }
+  .proof-row:last-of-type { border-bottom: none; }
+
+  .proof-icon {
+    font-size: 11mm;
+    line-height: 1;
+    flex-shrink: 0;
+    width: 14mm;
+    text-align: center;
+    margin-top: 1mm;
+  }
+
+  .proof-text {}
+  .proof-title {
+    font-family: 'Spectral', serif;
+    font-size: 7mm;
+    font-weight: 700;
+    color: #1a2238;
+    line-height: 1.15;
+    margin-bottom: 2mm;
+  }
+  .proof-title em {
+    font-style: italic;
+    color: #d7263d;
+  }
+  .proof-desc {
+    font-family: 'Inter', sans-serif;
+    font-size: 4mm;
+    color: #4a5168;
+    line-height: 1.6;
+    max-width: 200mm;
+  }
+
+  /* ── Bottom CTA ── */
+  .cta {
+    background: #1a2238;
+    padding: 10mm 14mm;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8mm;
+    flex-shrink: 0;
+  }
+
+  .cta-left {}
+  .cta-eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 3mm;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.4);
+    margin-bottom: 3mm;
+  }
+  .cta-big {
+    font-family: 'Spectral', serif;
+    font-size: 12mm;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.1;
+  }
+  .cta-big span { color: #d7263d; }
+
+  .cta-sub {
+    font-family: 'Inter', sans-serif;
+    font-size: 4mm;
+    color: rgba(255,255,255,0.55);
+    margin-top: 2mm;
+  }
+
+  .cta-right {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3mm;
+    flex-shrink: 0;
+  }
+
+  .qr-box {
+    width: 28mm; height: 28mm;
+    background: #fff;
+    border-radius: 2mm;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .qr-box svg {
+    width: 22mm; height: 22mm;
+    opacity: 0.7;
+  }
+
+  .qr-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 2.8mm;
+    font-weight: 700;
+    color: rgba(255,255,255,0.35);
+    letter-spacing: 0.1em;
+    text-align: center;
+  }
+
+  /* Countdown visual */
+  .countdown {
+    display: flex;
+    gap: 4mm;
+    margin: 8mm 0 0;
+  }
+  .count-block {
+    background: rgba(215,38,61,0.15);
+    border: 1.5px solid rgba(215,38,61,0.3);
+    border-radius: 2mm;
+    padding: 3mm 5mm;
+    text-align: center;
+    flex: 1;
+  }
+  .count-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8mm;
+    font-weight: 700;
+    color: #d7263d;
+    line-height: 1;
+    display: block;
+  }
+  .count-unit {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 2.5mm;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.4);
+    display: block;
+    margin-top: 1mm;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-top">
+      <p class="wordmark">CramForge</p>
+      <p class="exam-season-badge">VCE Exam Season 2025</p>
+    </div>
+    <h1 class="hero-headline">
+      Exams<br>
+      are<br>
+      <em>soon.</em>
+    </h1>
+    <p class="hero-deck">
+      Stop re-reading your notes.<br>
+      Start getting asked questions — by an AI that has<br>
+      actually read them.
+    </p>
+  </div>
+
+  <!-- SUBJECTS STRIP -->
+  <div class="dark-strip">
+    <span class="dark-strip-label">Works for</span>
+    <div class="dark-strip-subjects">
+      <span class="subj-pill">Biology</span>
+      <span class="subj-pill">Chemistry</span>
+      <span class="subj-pill">Physics</span>
+      <span class="subj-pill">Psych</span>
+      <span class="subj-pill">English</span>
+      <span class="subj-pill">Methods</span>
+      <span class="subj-pill">Specialist</span>
+      <span class="subj-pill">Legal</span>
+      <span class="subj-pill">History</span>
+      <span class="subj-pill">Economics</span>
+      <span class="subj-pill">+ every other subject</span>
+    </div>
+  </div>
+
+  <!-- PROOF POINTS -->
+  <div class="body">
+    <div class="proof-row">
+      <div class="proof-icon">📄</div>
+      <div class="proof-text">
+        <p class="proof-title">Paste your study notes.<br><em>Get an exam.</em></p>
+        <p class="proof-desc">Upload any file — your teacher's slides, a summary you wrote, a chapter PDF. CramForge generates exam-style questions on your exact content. Not generic practice questions. Your content.</p>
+      </div>
+    </div>
+
+    <div class="proof-row">
+      <div class="proof-icon">✍️</div>
+      <div class="proof-text">
+        <p class="proof-title">Write answers.<br><em>Get marked.</em></p>
+        <p class="proof-desc">Type a response like you would in the exam. CramForge marks it with a score, examiner's notes, and a model answer. Identifies where you'd lose marks. Tells you exactly what to improve.</p>
+      </div>
+    </div>
+
+    <div class="proof-row">
+      <div class="proof-icon">⚡</div>
+      <div class="proof-text">
+        <p class="proof-title">Spare 5 minutes?<br><em>Quick Study mode.</em></p>
+        <p class="proof-desc">5 multiple choice questions from your notes. On your phone. While you're waiting for the bus, between study blocks, before dinner. Every question answered adds XP. Streaks. Combo multipliers. It's weirdly addictive.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- CTA FOOTER -->
+  <div class="cta">
+    <div class="cta-left">
+      <p class="cta-eyebrow">Start studying smarter</p>
+      <p class="cta-big">Cram<span>Forge</span>.app</p>
+      <p class="cta-sub">Free to start. No credit card. Works on your phone.</p>
+    </div>
+    <div class="cta-right">
+      <div class="qr-box">
+        <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+          <rect x="5" y="5" width="35" height="35" rx="4" fill="none" stroke="#1a2238" stroke-width="6"/>
+          <rect x="16" y="16" width="13" height="13" fill="#1a2238"/>
+          <rect x="60" y="5" width="35" height="35" rx="4" fill="none" stroke="#1a2238" stroke-width="6"/>
+          <rect x="71" y="16" width="13" height="13" fill="#1a2238"/>
+          <rect x="5" y="60" width="35" height="35" rx="4" fill="none" stroke="#1a2238" stroke-width="6"/>
+          <rect x="16" y="71" width="13" height="13" fill="#1a2238"/>
+          <rect x="60" y="60" width="8" height="8" fill="#1a2238"/>
+          <rect x="72" y="60" width="8" height="8" fill="#1a2238"/>
+          <rect x="84" y="60" width="11" height="8" fill="#1a2238"/>
+          <rect x="60" y="72" width="8" height="8" fill="#1a2238"/>
+          <rect x="72" y="72" width="23" height="8" fill="#1a2238"/>
+          <rect x="60" y="84" width="14" height="11" fill="#1a2238"/>
+          <rect x="80" y="84" width="15" height="11" fill="#1a2238"/>
+        </svg>
+      </div>
+      <p class="qr-label">Scan to open</p>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

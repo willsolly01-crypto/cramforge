@@ -2,7 +2,11 @@
 // The API key lives in the ANTHROPIC_API_KEY environment variable on Vercel —
 // it is never exposed to the browser.
 
-export async function callClaude(content, maxTokens = 4000) {
+// Model constants — choose based on task complexity vs cost
+export const MODEL_FAST = "claude-haiku-4-5-20251001";  // ~20x cheaper, great for generate/grade
+export const MODEL_SMART = "claude-sonnet-4-6";          // more capable, keep for ingest/complex tasks
+
+export async function callClaude(content, maxTokens = 4000, model = MODEL_SMART) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new Error("ANTHROPIC_API_KEY is not set on the server.");
@@ -16,7 +20,7 @@ export async function callClaude(content, maxTokens = 4000) {
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-6",
+      model,
       max_tokens: maxTokens,
       messages: [{ role: "user", content }],
     }),
@@ -24,7 +28,11 @@ export async function callClaude(content, maxTokens = 4000) {
 
   if (!response.ok) {
     const errText = await response.text();
-    throw new Error(`Anthropic API error ${response.status}: ${errText}`);
+    // Log full details server-side but don't expose Anthropic internals to the client
+    console.error(`Anthropic API error ${response.status}:`, errText);
+    const err = new Error("AI service error — please try again in a moment.");
+    err.status = response.status === 529 ? 503 : 502;
+    throw err;
   }
 
   const data = await response.json();

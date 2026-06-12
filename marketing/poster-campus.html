@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CramForge — Campus Poster</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,600;0,700;1,600&family=IBM+Plex+Mono:wght@400;700&family=Inter:wght@400;500;600&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    width: 420mm;   /* A3 */
+    height: 297mm;
+    background: #fbfbf8;
+    font-family: 'Inter', sans-serif;
+    color: #1a2238;
+    overflow: hidden;
+    /* Print: File > Print > Paper size A3 Landscape, no margins */
+  }
+
+  @page {
+    size: A3 landscape;
+    margin: 0;
+  }
+  @media print {
+    body { width: 420mm; height: 297mm; }
+  }
+
+  .page {
+    width: 100%;
+    height: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1px 1fr;
+    position: relative;
+  }
+
+  /* ── Red top accent bar ── */
+  .accent-bar {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 8mm;
+    background: #d7263d;
+    z-index: 10;
+  }
+
+  /* ── Left panel — dark ── */
+  .left {
+    background: #1a2238;
+    padding: 18mm 16mm 14mm;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* decorative grid lines */
+  .left::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+    background-size: 18mm 18mm;
+  }
+
+  .wordmark {
+    font-family: 'Spectral', Georgia, serif;
+    font-size: 13mm;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    margin-bottom: 6mm;
+    position: relative;
+    z-index: 1;
+  }
+  .wordmark span { color: #d7263d; }
+
+  .tagline-mono {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 3mm;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.35);
+    margin-bottom: 12mm;
+    position: relative;
+    z-index: 1;
+  }
+
+  .headline {
+    font-family: 'Spectral', Georgia, serif;
+    font-size: 22mm;
+    font-weight: 700;
+    line-height: 1.0;
+    color: #fff;
+    margin-bottom: 8mm;
+    position: relative;
+    z-index: 1;
+  }
+  .headline em {
+    font-style: italic;
+    color: #ffe45c;
+  }
+
+  .subhead {
+    font-family: 'Inter', sans-serif;
+    font-size: 5mm;
+    font-weight: 400;
+    line-height: 1.6;
+    color: rgba(255,255,255,0.65);
+    max-width: 140mm;
+    position: relative;
+    z-index: 1;
+  }
+
+  .url-badge {
+    margin-top: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 3mm;
+    background: #d7263d;
+    color: #fff;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 5.5mm;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 3.5mm 6mm;
+    border-radius: 2mm;
+    position: relative;
+    z-index: 1;
+    align-self: flex-start;
+  }
+
+  /* ── Divider ── */
+  .divider { background: rgba(26,34,56,0.12); }
+
+  /* ── Right panel — light ── */
+  .right {
+    background: #fbfbf8;
+    padding: 18mm 14mm 14mm 16mm;
+    display: flex;
+    flex-direction: column;
+    gap: 6mm;
+  }
+
+  .right-intro {
+    font-family: 'Spectral', serif;
+    font-size: 6.5mm;
+    font-weight: 600;
+    color: #1a2238;
+    line-height: 1.35;
+    margin-bottom: 2mm;
+    border-top: 1px solid #d7263d;
+    padding-top: 5mm;
+  }
+
+  .step {
+    display: flex;
+    gap: 5mm;
+    align-items: flex-start;
+  }
+  .step-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 3.5mm;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: #d7263d;
+    background: rgba(215,38,61,0.08);
+    border-radius: 1mm;
+    padding: 1.5mm 3mm;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-top: 0.5mm;
+  }
+  .step-body {}
+  .step-title {
+    font-family: 'Inter', sans-serif;
+    font-size: 4.5mm;
+    font-weight: 600;
+    color: #1a2238;
+    margin-bottom: 1mm;
+  }
+  .step-desc {
+    font-family: 'Inter', sans-serif;
+    font-size: 3.5mm;
+    color: #4a5168;
+    line-height: 1.55;
+  }
+
+  .divider-h {
+    height: 1px;
+    background: rgba(26,34,56,0.1);
+  }
+
+  /* Feature pills */
+  .pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2.5mm;
+    margin-top: 2mm;
+  }
+  .pill {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 3mm;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border: 1.5px solid rgba(26,34,56,0.18);
+    border-radius: 99mm;
+    padding: 1.5mm 4mm;
+    color: #4a5168;
+  }
+
+  /* QR placeholder */
+  .qr-row {
+    margin-top: auto;
+    display: flex;
+    align-items: center;
+    gap: 5mm;
+    border-top: 1px solid rgba(26,34,56,0.1);
+    padding-top: 5mm;
+  }
+  .qr-box {
+    width: 22mm; height: 22mm;
+    border: 1.5px solid rgba(26,34,56,0.25);
+    border-radius: 2mm;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: #fff;
+  }
+  .qr-svg {
+    width: 17mm; height: 17mm;
+    opacity: 0.5;
+  }
+  .qr-text {
+    font-family: 'Inter', sans-serif;
+    font-size: 3.5mm;
+    color: #4a5168;
+    line-height: 1.5;
+  }
+  .qr-text strong {
+    display: block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 4mm;
+    color: #1a2238;
+    margin-bottom: 1mm;
+  }
+
+  /* "Free to start" badge */
+  .free-badge {
+    position: absolute;
+    top: 16mm;
+    right: 14mm;
+    background: #ffe45c;
+    color: #1a2238;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 3.5mm;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 2mm 4mm;
+    border-radius: 1mm;
+    transform: rotate(2deg);
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="accent-bar"></div>
+
+  <!-- LEFT: dark headline panel -->
+  <div class="left">
+    <p class="wordmark">Cram<span>Forge</span></p>
+    <p class="tagline-mono">AI-powered exam practice</p>
+
+    <h1 class="headline">
+      Your notes.<br>
+      <em>Infinite</em><br>
+      questions.
+    </h1>
+
+    <p class="subhead">
+      Upload your lecture slides or notes.<br>
+      CramForge reads them and generates unlimited exam-style questions with worked solutions — in seconds.
+    </p>
+
+    <div class="url-badge">cramforge.app</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- RIGHT: how it works -->
+  <div class="right">
+    <div class="free-badge">Free to start</div>
+
+    <p class="right-intro">How it works</p>
+
+    <div class="step">
+      <span class="step-num">01</span>
+      <div class="step-body">
+        <p class="step-title">Upload your materials</p>
+        <p class="step-desc">Lecture slides, PDFs, typed notes, past papers — CramForge reads them and builds a study model for your exact unit.</p>
+      </div>
+    </div>
+
+    <div class="divider-h"></div>
+
+    <div class="step">
+      <span class="step-num">02</span>
+      <div class="step-body">
+        <p class="step-title">Generate exam questions</p>
+        <p class="step-desc">Hit generate and get a set of exam-style questions — from 2-mark definitions to 10-mark extended response — with full worked solutions.</p>
+      </div>
+    </div>
+
+    <div class="divider-h"></div>
+
+    <div class="step">
+      <span class="step-num">03</span>
+      <div class="step-body">
+        <p class="step-title">Get marked like a real exam</p>
+        <p class="step-desc">Write your answer, submit, and receive a detailed mark with examiner's notes and model solution. CramForge tracks which topics keep tripping you up.</p>
+      </div>
+    </div>
+
+    <div class="divider-h"></div>
+
+    <div class="step">
+      <span class="step-num">04</span>
+      <div class="step-body">
+        <p class="step-title">Export a practice paper</p>
+        <p class="step-desc">Download a beautiful branded exam paper — clean answer spaces, mark allocations, correct layout. Print it and practice under real conditions.</p>
+      </div>
+    </div>
+
+    <div class="pills">
+      <span class="pill">Unlimited questions</span>
+      <span class="pill">AI marking</span>
+      <span class="pill">Quick Study mode</span>
+      <span class="pill">Study timer</span>
+      <span class="pill">PDF export</span>
+      <span class="pill">All subjects</span>
+    </div>
+
+    <div class="qr-row">
+      <div class="qr-box">
+        <!-- Replace this SVG with your actual QR code for cramforge.app -->
+        <svg class="qr-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+          <rect x="5" y="5" width="35" height="35" rx="4" fill="none" stroke="#1a2238" stroke-width="6"/>
+          <rect x="16" y="16" width="13" height="13" fill="#1a2238"/>
+          <rect x="60" y="5" width="35" height="35" rx="4" fill="none" stroke="#1a2238" stroke-width="6"/>
+          <rect x="71" y="16" width="13" height="13" fill="#1a2238"/>
+          <rect x="5" y="60" width="35" height="35" rx="4" fill="none" stroke="#1a2238" stroke-width="6"/>
+          <rect x="16" y="71" width="13" height="13" fill="#1a2238"/>
+          <rect x="60" y="60" width="8" height="8" fill="#1a2238"/>
+          <rect x="72" y="60" width="8" height="8" fill="#1a2238"/>
+          <rect x="84" y="60" width="11" height="8" fill="#1a2238"/>
+          <rect x="60" y="72" width="8" height="8" fill="#1a2238"/>
+          <rect x="72" y="72" width="23" height="8" fill="#1a2238"/>
+          <rect x="60" y="84" width="14" height="11" fill="#1a2238"/>
+          <rect x="80" y="84" width="15" height="11" fill="#1a2238"/>
+        </svg>
+      </div>
+      <div class="qr-text">
+        <strong>cramforge.app</strong>
+        Scan or visit on your phone.<br>
+        Free to start — no credit card needed.
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

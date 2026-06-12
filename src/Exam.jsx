@@ -1,8 +1,18 @@
 import { useState, useEffect, useRef } from "react";
-import { generateQuestions, gradeAttempt } from "./api.js";
+import { generateQuestions, gradeAttempt, exportPDF } from "./api.js";
 import { recordResult } from "./storage.js";
+import MathText from "./MathText.jsx";
 
-export default function Exam({ unit, updateUnit, topics, notes, weak }) {
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement("a");
+  a.href    = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export default function Exam({ unit, updateUnit, topics, notes, weak, isPro }) {
   const [phase, setPhase] = useState("setup"); // setup | running | grading | results
   const [count, setCount] = useState(4);
   const [minutes, setMinutes] = useState(30);
@@ -13,6 +23,8 @@ export default function Exam({ unit, updateUnit, topics, notes, weak }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [gradeProgress, setGradeProgress] = useState(0);
+  const [exporting, setExporting] = useState(false);
+  const [exportMsg, setExportMsg] = useState("");
   const timerRef = useRef(null);
 
   useEffect(() => {
@@ -43,6 +55,7 @@ export default function Exam({ unit, updateUnit, topics, notes, weak }) {
         count,
         weakTopics: weak,
         examMode: true,
+        subjectType: unit.subjectType || "stem",
       });
       const qs = out.questions || [];
       setQuestions(qs);
@@ -161,7 +174,7 @@ export default function Exam({ unit, updateUnit, topics, notes, weak }) {
               <span className="qnum">Question {i + 1}</span>
               <span className="qmarks">({q.marks} marks)</span>
             </div>
-            <p className="qtext">{q.text}</p>
+            <MathText block className="qtext">{q.text}</MathText>
             <label className="eyebrow" htmlFor={`ex-${i}`}>Your working</label>
             <textarea
               id={`ex-${i}`}
@@ -194,9 +207,27 @@ export default function Exam({ unit, updateUnit, topics, notes, weak }) {
 
   // results
   const totalScore = results.reduce((a, r) => a + r.score, 0);
-  const totalMax = results.reduce((a, r) => a + r.maxMarks, 0);
-  const pct = totalMax ? Math.round((totalScore / totalMax) * 100) : 0;
-  const tone = pct >= 70 ? "green" : pct >= 50 ? "amber" : "";
+  const totalMax   = results.reduce((a, r) => a + r.maxMarks, 0);
+  const pct        = totalMax ? Math.round((totalScore / totalMax) * 100) : 0;
+  const tone       = pct >= 70 ? "green" : pct >= 50 ? "amber" : "";
+
+  const handleExportPDF = async () => {
+    setExporting(true);
+    setExportMsg("");
+    try {
+      const blob = await exportPDF({
+        questions,
+        unitName:    unit.name,
+        subjectType: unit.subjectType || "stem",
+      });
+      const safeName = unit.name.replace(/[^a-zA-Z0-9]/g, "-").toLowerCase();
+      downloadBlob(blob, `cramforge-${safeName}.pdf`);
+      setExportMsg(isPro ? "" : "Demo exported — upgrade to Pro for unlimited PDF exports.");
+    } catch (e) {
+      setExportMsg(e.message);
+    }
+    setExporting(false);
+  };
 
   return (
     <>
@@ -211,10 +242,24 @@ export default function Exam({ unit, updateUnit, topics, notes, weak }) {
             {pct >= 80 ? "HD territory. Keep this up." : pct >= 70 ? "Solid distinction-level work." : pct >= 50 ? "Passing — check the examiner's notes below." : "Rough paper — the feedback below shows exactly where it went."}
           </div>
         </div>
-        <button className="btn ghost" style={{ marginLeft: "auto" }} onClick={() => setPhase("setup")}>
-          New paper
-        </button>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button
+            className="btn ghost sm"
+            style={{ display: "flex", alignItems: "center", gap: 6 }}
+            onClick={handleExportPDF}
+            disabled={exporting}
+            title={isPro ? "Export exam paper as PDF" : "1 free demo export"}
+          >
+            {exporting ? <><span className="spin">◌</span> PDF…</> : <>📄 PDF{isPro ? "" : " (1 free)"}</>}
+          </button>
+          <button className="btn ghost" onClick={() => setPhase("setup")}>New paper</button>
+        </div>
       </div>
+      {exportMsg && (
+        <p className="small" style={{ color: exportMsg.includes("Demo") ? "var(--amber)" : "var(--red)", marginBottom: 12 }}>
+          {exportMsg}
+        </p>
+      )}
 
       {questions.map((q, i) => {
         const r = results[i];
@@ -228,7 +273,7 @@ export default function Exam({ unit, updateUnit, topics, notes, weak }) {
                 {r.score}/{r.maxMarks}
               </span>
             </div>
-            <p className="qtext">{q.text}</p>
+            <MathText block className="qtext">{q.text}</MathText>
             {attempts[i] && attempts[i].trim() && (
               <div className="solution" style={{ borderTop: "none", paddingTop: 0 }}>
                 <span className="label">Your working</span>
@@ -243,7 +288,7 @@ export default function Exam({ unit, updateUnit, topics, notes, weak }) {
             </div>
             <div className="solution">
               <span className="label">Model solution</span>
-              {q.solution}
+              <MathText block>{q.solution}</MathText>
             </div>
           </div>
         );

@@ -30,10 +30,20 @@ export function saveState(state) {
   }
 }
 
-export function newUnit(name) {
+// Subject types determine the question format and marking rubric
+export const SUBJECT_TYPES = [
+  { value: "stem",       label: "STEM (maths, science, engineering)" },
+  { value: "essay",      label: "Essay (humanities, social science)" },
+  { value: "law",        label: "Law (IRAC analysis)" },
+  { value: "accounting", label: "Accounting (journal entries, ratios)" },
+  { value: "medicine",   label: "Medicine / Health Sciences" },
+];
+
+export function newUnit(name, subjectType = "stem") {
   return {
     id: "u" + Date.now().toString(36),
     name,
+    subjectType,
     materials: [],
     stats: {},
     history: [],

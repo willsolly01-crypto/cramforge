@@ -1,4 +1,4 @@
-import { callClaude, parseJson, readBody } from "./_claude.js";
+import { callClaude, parseJson, readBody, MODEL_FAST } from "./_claude.js";
 import { requireUser, checkAndCount, sendErr } from "./_auth.js";
 
 export default async function handler(req, res) {
@@ -32,7 +32,7 @@ Mark the attempt with partial credit:
 Respond with ONLY a JSON object, no markdown fences:
 {"score": number, "maxMarks": ${marks}, "errorType": "concept"|"algebra"|"arithmetic"|"incomplete"|"none", "feedback": "specific feedback", "verdict": "correct"|"partial"|"incorrect"}`;
 
-    const out = await callClaude([{ type: "text", text: prompt }], 1500);
+    const out = await callClaude([{ type: "text", text: prompt }], 700, MODEL_FAST);
     const parsed = parseJson(out);
     return res.status(200).json(parsed);
   } catch (e) {

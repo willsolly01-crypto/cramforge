@@ -15,6 +15,7 @@ import StudyTimer  from "./StudyTimer.jsx";
 import QuestionBank from "./QuestionBank.jsx";
 import QuickStudy  from "./QuickStudy.jsx";
 import StudyFeed   from "./StudyFeed.jsx";
+import OnboardingTour, { shouldShowOnboarding } from "./OnboardingTour.jsx";
 import { supabase } from "./supabase.js";
 import { activateSession, startCheckout, syncState, loadServerState } from "./api.js";
 
@@ -45,6 +46,7 @@ export default function App() {
   const [quickMode,    setQuickMode]    = useState(false);
   const [installPrompt, setInstallPrompt] = useState(null);
   const [showInstall,   setShowInstall]   = useState(false);
+  const [showTour,      setShowTour]      = useState(shouldShowOnboarding());
   const syncTimer = useRef(null);
 
   // ── PWA install banner ──────────────────────────────────────────────────
@@ -219,6 +221,11 @@ export default function App() {
 
   return (
     <>
+      {/* First-visit onboarding tour */}
+      {showTour && (
+        <OnboardingTour onNavigate={setTab} onDone={() => setShowTour(false)} />
+      )}
+
       {/* Upgrade modal */}
       {upgradeMsg && (
         <div className="upgrade-overlay" onClick={() => setUpgradeMsg(null)}>
@@ -310,8 +317,16 @@ export default function App() {
             ⚡ Quick Study
           </button>
 
-          {/* Sidebar shortcuts */}
-          <div style={{ marginTop: 8, display: "flex", gap: 6 }}>
+          {/* Study together — social features front and centre */}
+          <div className="eyebrow" style={{ margin: "18px 0 8px" }}>Study together</div>
+          <button
+            className={"btn sm" + (tab === "feed" ? "" : " ghost")}
+            style={{ width: "100%", marginBottom: 6, fontSize: 12 }}
+            onClick={() => setTab("feed")}
+          >
+            📸 Study Feed — post & see friends
+          </button>
+          <div style={{ display: "flex", gap: 6 }}>
             <button
               className={"btn sm ghost" + (tab === "bank" ? " active" : "")}
               style={{ flex: 1, fontSize: 11 }}
@@ -325,13 +340,6 @@ export default function App() {
               onClick={() => setTab("study")}
             >
               Study timer
-            </button>
-            <button
-              className={"btn sm ghost" + (tab === "feed" ? " active" : "")}
-              style={{ flex: 1, fontSize: 11 }}
-              onClick={() => setTab("feed")}
-            >
-              Feed
             </button>
           </div>
 

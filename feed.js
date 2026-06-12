@@ -77,19 +77,38 @@ export default async function handler(req, res) {
       if (authorIds.length) {
         const { data: profs } = await sb
           .from("profiles")
-          .select("id, username, display_name")
+          .select("id, username, display_name, streak_count")
           .in("id", authorIds);
         (profs || []).forEach((p) => (profiles[p.id] = p));
+      }
+
+      // Reactions for these posts: counts per emoji + which ones I gave
+      const postIds = (posts || []).map((p) => p.id);
+      const reactionsByPost = {};
+      if (postIds.length) {
+        const { data: rx } = await sb
+          .from("post_reactions")
+          .select("post_id, user_id, emoji")
+          .in("post_id", postIds);
+        (rx || []).forEach((r) => {
+          const slot = (reactionsByPost[r.post_id] ||= { counts: {}, mine: [] });
+          slot.counts[r.emoji] = (slot.counts[r.emoji] || 0) + 1;
+          if (r.user_id === user.id) slot.mine.push(r.emoji);
+        });
       }
 
       const out = (posts || []).map((p) => {
         const { data: pub } = sb.storage.from("study-photos").getPublicUrl(p.photo_path);
         const prof = profiles[p.user_id] || {};
+        const rx = reactionsByPost[p.id] || { counts: {}, mine: [] };
         return {
           id: p.id,
           mine: p.user_id === user.id,
           username: prof.username,
           displayName: prof.display_name,
+          streak: prof.streak_count || 0,
+          reactions: rx.counts,
+          myReactions: rx.mine,
           photoUrl: pub.publicUrl,
           caption: p.caption,
           unitName: p.unit_name,
@@ -99,6 +118,48 @@ export default async function handler(req, res) {
       });
 
       return res.status(200).json({ posts: out, friendCount: friendIds.length });
+    }
+
+    if (action === "react") {
+      const emoji = body.emoji;
+      if (!["🔥", "📚", "💀", "👏"].includes(emoji)) throw httpErr(400, "Unknown reaction.");
+      const { data: post } = await sb
+        .from("study_posts")
+        .select("id, user_id")
+        .eq("id", body.postId)
+        .maybeSingle();
+      if (!post) throw httpErr(404, "Post not found.");
+      // Visibility: own post or a friend's post
+      if (post.user_id !== user.id) {
+        const { data: fr } = await sb
+          .from("friendships")
+          .select("id")
+          .eq("status", "accepted")
+          .or(
+            `and(requester.eq.${user.id},addressee.eq.${post.user_id}),and(requester.eq.${post.user_id},addressee.eq.${user.id})`
+          )
+          .maybeSingle();
+        if (!fr) throw httpErr(403, "You can only react to friends' posts.");
+      }
+      // Toggle
+      const { data: existing } = await sb
+        .from("post_reactions")
+        .select("*")
+        .eq("post_id", post.id)
+        .eq("user_id", user.id)
+        .eq("emoji", emoji)
+        .maybeSingle();
+      if (existing) {
+        await sb
+          .from("post_reactions")
+          .delete()
+          .eq("post_id", post.id)
+          .eq("user_id", user.id)
+          .eq("emoji", emoji);
+        return res.status(200).json({ ok: true, reacted: false });
+      }
+      await sb.from("post_reactions").insert({ post_id: post.id, user_id: user.id, emoji });
+      return res.status(200).json({ ok: true, reacted: true });
     }
 
     if (action === "delete") {

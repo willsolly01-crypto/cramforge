@@ -112,6 +112,30 @@ export default function StudyFeed({ unitNames = [] }) {
     setPosting(false);
   };
 
+  const toggleReaction = async (postId, emoji) => {
+    // optimistic flip
+    setPosts((list) =>
+      list.map((p) => {
+        if (p.id !== postId) return p;
+        const mine = p.myReactions || [];
+        const counts = { ...(p.reactions || {}) };
+        const has = mine.includes(emoji);
+        counts[emoji] = Math.max(0, (counts[emoji] || 0) + (has ? -1 : 1));
+        return {
+          ...p,
+          reactions: counts,
+          myReactions: has ? mine.filter((e) => e !== emoji) : [...mine, emoji],
+        };
+      })
+    );
+    try {
+      await call("/api/feed", { action: "react", postId, emoji });
+    } catch (e) {
+      setError(e.message);
+      loadFeed(); // resync on failure
+    }
+  };
+
   const deletePost = async (id) => {
     if (!window.confirm("Delete this post?")) return;
     try {
@@ -219,6 +243,15 @@ export default function StudyFeed({ unitNames = [] }) {
                   <span style={{ fontWeight: 600 }}>
                     {p.displayName || p.username || "Anonymous"}
                     {p.username && <span className="mono small muted"> @{p.username}</span>}
+                    {p.streak >= 2 && (
+                      <span
+                        className="mono"
+                        title={`${p.streak}-day study streak`}
+                        style={{ marginLeft: 8, fontSize: 13, background: "var(--amber-soft)", border: "1px solid var(--amber)", borderRadius: 99, padding: "2px 10px", color: "var(--amber)", fontWeight: 700 }}
+                      >
+                        🔥 {p.streak}
+                      </span>
+                    )}
                   </span>
                   <span className="mono small muted">{timeAgo(p.createdAt)}</span>
                 </div>
@@ -229,6 +262,7 @@ export default function StudyFeed({ unitNames = [] }) {
                   )}
                 </div>
                 {p.caption && <p style={{ margin: "6px 0 0", fontSize: 14, lineHeight: 1.5 }}>{p.caption}</p>}
+                <ReactionBar post={p} onToggle={(emoji) => toggleReaction(p.id, emoji)} />
                 {p.mine && (
                   <button className="btn sm ghost" style={{ marginTop: 10, color: "var(--red)", borderColor: "var(--red)" }} onClick={() => deletePost(p.id)}>
                     Delete
@@ -341,5 +375,42 @@ function FriendsPanel({ onChanged }) {
         )}
       </div>
     </>
+  );
+}
+
+
+const EMOJIS = ["🔥", "📚", "💀", "👏"];
+
+function ReactionBar({ post, onToggle }) {
+  const counts = post.reactions || {};
+  const mine = post.myReactions || [];
+  return (
+    <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+      {EMOJIS.map((e) => {
+        const n = counts[e] || 0;
+        const active = mine.includes(e);
+        return (
+          <button
+            key={e}
+            onClick={() => onToggle(e)}
+            aria-pressed={active}
+            aria-label={`React ${e}`}
+            style={{
+              fontFamily: "var(--mono)",
+              fontSize: 14,
+              padding: "5px 12px",
+              borderRadius: 99,
+              cursor: "pointer",
+              border: active ? "1.5px solid var(--red)" : "1.5px solid var(--line)",
+              background: active ? "var(--red-soft)" : "#fff",
+              color: "var(--ink)",
+              fontWeight: 700,
+            }}
+          >
+            {e}{n > 0 ? ` ${n}` : ""}
+          </button>
+        );
+      })}
+    </div>
   );
 }

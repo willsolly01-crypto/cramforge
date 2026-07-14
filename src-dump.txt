@@ -1,0 +1,4301 @@
+=== src/Account.jsx ===
+import { useState, useEffect } from "react";
+import { fetchMe, startCheckout, openPortal, updateProfile } from "./api.js";
+import { supabase } from "./supabase.js";
+import ClassManager from "./ClassManager.jsx";
+
+function ReferralSection({ referral }) {
+  const [copied, setCopied] = useState(false);
+  const link = `${window.location.origin}?ref=${referral.code}`;
+  const copy = () => {
+    navigator.clipboard?.writeText(link).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <div className="booklet" style={{ marginTop: 20 }}>
+      <div className="eyebrow" style={{ marginBottom: 10 }}>Refer a friend</div>
+      <p className="small" style={{ color: "var(--ink-soft)", marginBottom: 14, lineHeight: 1.6 }}>
+        Share your link. Every sign-up earns you <strong>+5 free question sets</strong> — stacks up to 50.
+      </p>
+      <div style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
+        <input
+          type="text" readOnly value={link}
+          onClick={(e) => e.target.select()}
+          style={{ flexGrow: 1, fontSize: 12, fontFamily: "var(--mono)", color: "var(--ink-soft)" }}
+        />
+        <button className="btn sm" style={{ whiteSpace: "nowrap", flexShrink: 0 }} onClick={copy}>
+          {copied ? "Copied!" : "Copy link"}
+        </button>
+      </div>
+      <div style={{ display: "flex", gap: 24, marginTop: 16 }}>
+        <div style={{ textAlign: "center" }}>
+          <p style={{ margin: 0, fontFamily: "var(--mono)", fontSize: 22, fontWeight: 700 }}>
+            {referral.count}
+          </p>
+          <p className="eyebrow" style={{ marginTop: 2 }}>referrals</p>
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <p style={{ margin: 0, fontFamily: "var(--mono)", fontSize: 22, fontWeight: 700, color: "var(--green)" }}>
+            +{referral.bonus_gen}
+          </p>
+          <p className="eyebrow" style={{ marginTop: 2 }}>bonus sets</p>
+        </div>
+      </div>
+      {referral.bonus_gen > 0 && (
+        <p className="small" style={{ color: "var(--green)", marginTop: 12 }}>
+          ✓ {referral.bonus_gen} bonus sets added to your daily limit.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function ProfileSection({ profile, onSaved }) {
+  const [username,    setUsername]    = useState(profile.username    || "");
+  const [displayName, setDisplayName] = useState(profile.displayName || "");
+  const [isPublic,    setIsPublic]    = useState(profile.isPublic    !== false);
+  const [saving,      setSaving]      = useState(false);
+  const [msg,         setMsg]         = useState("");
+  const [error,       setError]       = useState("");
+  const [copied,      setCopied]      = useState(false);
+
+  const profileUrl = username
+    ? `${window.location.origin}?profile=${encodeURIComponent(username)}`
+    : null;
+
+  const save = async () => {
+    setSaving(true);
+    setMsg(""); setError("");
+    try {
+      await updateProfile({ username: username.trim(), displayName: displayName.trim(), isPublic });
+      setMsg("Profile updated.");
+      onSaved && onSaved({ username: username.trim(), displayName: displayName.trim(), isPublic });
+    } catch (e) {
+      setError(e.message);
+    }
+    setSaving(false);
+  };
+
+  const copyProfileLink = () => {
+    if (!profileUrl) return;
+    navigator.clipboard?.writeText(profileUrl).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="booklet" style={{ marginTop: 20 }}>
+      <div className="eyebrow" style={{ marginBottom: 12 }}>Public profile</div>
+      <p className="small muted" style={{ marginTop: 0, marginBottom: 16 }}>
+        Your profile shows your study stats and streak to friends and classmates.
+      </p>
+
+      <label className="eyebrow" htmlFor="display-name">Display name</label>
+      <input
+        id="display-name"
+        type="text"
+        value={displayName}
+        onChange={(e) => setDisplayName(e.target.value)}
+        placeholder="e.g. Will"
+        style={{ marginBottom: 12 }}
+        maxLength={60}
+      />
+
+      <label className="eyebrow" htmlFor="username">Username</label>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
+        <span className="small muted" style={{ flexShrink: 0 }}>@</span>
+        <input
+          id="username"
+          type="text"
+          value={username}
+          onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
+          placeholder="yourusername"
+          maxLength={30}
+          style={{ flex: 1 }}
+        />
+      </div>
+
+      <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, cursor: "pointer" }}>
+        <input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} />
+        <span className="small">Show on leaderboard and allow profile sharing</span>
+      </label>
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button className="btn sm" onClick={save} disabled={saving}>
+          {saving ? "Saving…" : "Save profile"}
+        </button>
+        {profileUrl && (
+          <button className="btn ghost sm" onClick={copyProfileLink}>
+            {copied ? "✓ Copied!" : "Copy profile link"}
+          </button>
+        )}
+      </div>
+      {msg && <p className="small" style={{ color: "var(--green)", marginTop: 8 }}>{msg}</p>}
+      {error && <p className="error-text" style={{ marginTop: 8 }}>{error}</p>}
+    </div>
+  );
+}
+
+export default function Account({ profile, onProfileUpdate }) {
+  const [me,    setMe]    = useState(null);
+  const [busy,  setBusy]  = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    fetchMe().then(setMe).catch((e) => setError(e.message));
+  }, []);
+
+  const upgrade = async () => {
+    setBusy(true); setError("");
+    try { const { url } = await startCheckout(); window.location.href = url; }
+    catch (e) { setError(e.message); setBusy(false); }
+  };
+
+  const manage = async () => {
+    setBusy(true); setError("");
+    try { const { url } = await openPortal(); window.location.href = url; }
+    catch (e) { setError(e.message); setBusy(false); }
+  };
+
+  if (!me && !error) return <p className="mono small"><span className="spin">◌</span> Loading account…</p>;
+
+  return (
+    <>
+      <h2 className="h-display">Account</h2>
+      {me && (
+        <>
+          {/* Plan card */}
+          <div className="booklet">
+            <div className="qhead">
+              <span className="qnum">{me.email}</span>
+              <span className={`stamp ${me.plan === "pro" ? "green" : "amber"}`} style={{ fontSize: 14 }}>
+                {me.plan.toUpperCase()}
+              </span>
+            </div>
+            {me.plan === "free" ? (
+              <>
+                <p className="small muted">
+                  Today: {me.usage.gen}/{me.limits.gen} sets · {me.usage.grade}/{me.limits.grade} marked · {me.usage.ingest}/{me.limits.ingest} ingested
+                  {me.referral?.bonus_gen > 0 && (
+                    <span style={{ color: "var(--green)" }}> (+{me.referral.bonus_gen} referral bonus)</span>
+                  )}
+                </p>
+                <button className="btn red" onClick={upgrade} disabled={busy}>
+                  {busy ? "Opening checkout…" : "Upgrade to Pro — $8.99/mo · unlimited"}
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="small muted">Unlimited generation, grading, and exports. PDF export active.</p>
+                <button className="btn ghost" onClick={manage} disabled={busy}>
+                  {busy ? "Opening…" : "Manage billing / cancel"}
+                </button>
+              </>
+            )}
+            {error && <p className="error-text">{error}</p>}
+          </div>
+
+          {/* Public profile settings */}
+          <ProfileSection
+            profile={{ username: profile?.username || "", displayName: profile?.displayName || "", isPublic: profile?.isPublic !== false }}
+            onSaved={onProfileUpdate}
+          />
+
+          {/* Referral — free only */}
+          {me.plan === "free" && me.referral?.code && (
+            <ReferralSection referral={me.referral} />
+          )}
+
+          {/* Class manager */}
+          <ClassManager />
+
+          <div style={{ marginTop: 24 }}>
+            <button className="btn ghost sm" onClick={() => supabase.auth.signOut()}>Sign out</button>
+          </div>
+        </>
+      )}
+      {error && !me && <p className="error-text">{error}</p>}
+    </>
+  );
+}
+
+=== src/App.jsx ===
+import { useState, useEffect, useRef } from "react";
+import {
+  loadState, saveState, newUnit, unitTopics, unitNotes,
+  weakTopics, exportBackup, SUBJECT_TYPES,
+} from "./storage.js";
+import Materials  from "./Materials.jsx";
+import Practice   from "./Practice.jsx";
+import Exam       from "./Exam.jsx";
+import Progress   from "./Progress.jsx";
+import Auth       from "./Auth.jsx";
+import Account    from "./Account.jsx";
+import SharedView from "./SharedView.jsx";
+import SocialProfile from "./SocialProfile.jsx";
+import StudyTimer  from "./StudyTimer.jsx";
+import QuestionBank from "./QuestionBank.jsx";
+import QuickStudy  from "./QuickStudy.jsx";
+import StudyFeed   from "./StudyFeed.jsx";
+import OnboardingTour, { shouldShowOnboarding } from "./OnboardingTour.jsx";
+import { supabase } from "./supabase.js";
+import { activateSession, startCheckout, syncState, loadServerState } from "./api.js";
+
+// ── URL param routing (checked once at startup) ────────────────────────────
+const SP          = new URLSearchParams(window.location.search);
+const SHARE_ID    = SP.get("share");
+const PROFILE     = SP.get("profile");
+const QUICK_MODE  = SP.has("quick");          // ?quick=1 — PWA shortcut
+const INITIAL_TAB = SP.get("tab") || "materials"; // ?tab=study etc.
+
+// ── Register service worker ─────────────────────────────────────────────────
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
+
+export default function App() {
+  const [state,        setState]        = useState(loadState);
+  const [session,      setSession]      = useState(undefined);
+  const [justVerified, setJustVerified] = useState(false);
+  const [upgradeMsg,   setUpgradeMsg]   = useState(null);
+  const [tab,          setTab]          = useState(INITIAL_TAB);
+  const [adding,       setAdding]       = useState(false);
+  const [unitName,     setUnitName]     = useState("");
+  const [unitSubject,  setUnitSubject]  = useState("stem");
+  const [profile,      setProfile]      = useState(null);
+  const [quickMode,    setQuickMode]    = useState(false);
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [showInstall,   setShowInstall]   = useState(false);
+  const [showTour,      setShowTour]      = useState(shouldShowOnboarding());
+  const syncTimer = useRef(null);
+
+  // ── PWA install banner ──────────────────────────────────────────────────
+  useEffect(() => {
+    const handler = (e) => { e.preventDefault(); setInstallPrompt(e); setShowInstall(true); };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  // ── Static-content routes (no auth required) ────────────────────────────
+  if (SHARE_ID)  return <SharedView shareId={SHARE_ID} onSignup={() => window.history.replaceState({}, "", window.location.pathname)} />;
+  if (PROFILE)   return <SocialProfile username={PROFILE} onSignup={() => window.history.replaceState({}, "", window.location.pathname)} />;
+
+  // ── Auth + state bootstrap ───────────────────────────────────────────────
+  useEffect(() => {
+    if (window.location.hash.includes("type=signup") || window.location.hash.includes("type=email_change")) {
+      setJustVerified(true);
+    }
+
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+      setSession(s);
+      if (s) {
+        loadServerState().then((serverState) => {
+          if (!serverState) {
+            const local = loadState();
+            if (Object.keys(local.units || {}).length > 0) syncState(local).catch(() => {});
+          } else {
+            setState((local) => {
+              const merged = {
+                ...serverState,
+                units: { ...local.units, ...serverState.units },
+                activeUnitId: serverState.activeUnitId || local.activeUnitId,
+              };
+              saveState(merged);
+              return merged;
+            });
+          }
+        }).catch(() => {});
+
+        // Load profile info for social features
+        fetchProfileInfo();
+
+        // Activate Quick Study if launched via PWA shortcut
+        if (QUICK_MODE) setQuickMode(true);
+      }
+    });
+
+    const onLimit = (e) => setUpgradeMsg(e.detail?.message || "You've hit your daily limit.");
+    window.addEventListener("cramforge:limit", onLimit);
+    return () => {
+      sub.subscription.unsubscribe();
+      window.removeEventListener("cramforge:limit", onLimit);
+    };
+  }, []);
+
+  // Fetch profile info after login (username, plan for UI)
+  const fetchProfileInfo = async () => {
+    try {
+      const { data: { session: s } } = await supabase.auth.getSession();
+      if (!s) return;
+      const res = await fetch("/api/account?op=me", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${s.access_token}` },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) return;
+      const me = await res.json();
+      setProfile({
+        username:    me.profile?.username  || null,
+        displayName: me.profile?.display_name || null,
+        isPublic:    me.profile?.is_public !== false,
+        plan:        me.plan || "free",
+        pdfDemoUsed: me.profile?.pdf_demo_used || false,
+      });
+    } catch { /* non-fatal */ }
+  };
+
+  // After Stripe checkout: activate Pro
+  useEffect(() => {
+    const sid = new URLSearchParams(window.location.search).get("session_id");
+    if (sid && session) {
+      activateSession(sid).catch(() => {}).finally(() => window.history.replaceState({}, "", window.location.pathname));
+    }
+  }, [session]);
+
+  const persist = (next) => {
+    setState(next);
+    saveState(next);
+    if (session) {
+      clearTimeout(syncTimer.current);
+      syncTimer.current = setTimeout(() => syncState(next).catch(() => {}), 2000);
+    }
+  };
+
+  const unit = state.activeUnitId ? state.units[state.activeUnitId] : null;
+
+  const updateUnit = (updated) =>
+    persist({ ...state, units: { ...state.units, [updated.id]: updated } });
+
+  const addUnit = () => {
+    const name = unitName.trim();
+    if (!name) return;
+    const u = newUnit(name, unitSubject);
+    persist({ ...state, activeUnitId: u.id, units: { ...state.units, [u.id]: u } });
+    setUnitName(""); setUnitSubject("stem"); setAdding(false); setTab("materials");
+  };
+
+  const deleteUnit = (id) => {
+    if (!window.confirm("Delete this unit? This can't be undone.")) return;
+    const units = { ...state.units };
+    delete units[id];
+    const remaining = Object.keys(units);
+    persist({ ...state, units, activeUnitId: remaining[0] || null });
+  };
+
+  const importBackup = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        const data = JSON.parse(r.result);
+        if (!data.units) throw new Error("bad shape");
+        persist(data);
+      } catch { alert("That file isn't a CramForge backup."); }
+    };
+    r.readAsText(file);
+    e.target.value = "";
+  };
+
+  const isPro = profile?.plan === "pro";
+
+  const tabs = [
+    ["materials", "Materials"],
+    ["practice",  "Practice"],
+    ["exam",      "Exam"],
+    ["progress",  "Progress"],
+    ["bank",      "Question bank"],
+    ["study",     "Study timer"],
+    ["account",   "Account"],
+  ];
+
+  // Loading state
+  if (session === undefined) {
+    const isVerifying = window.location.hash.includes("type=signup") || window.location.hash.includes("type=email_change");
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100vh", gap: 16, background: "var(--paper)" }}>
+        <h1 className="wordmark" style={{ fontSize: 30 }}>Cram<span className="red">Forge</span></h1>
+        <p style={{ color: "var(--ink-soft)", fontSize: 15 }}>{isVerifying ? "Confirming your email…" : "Loading…"}</p>
+      </div>
+    );
+  }
+  if (!session) return <Auth />;
+
+  // ── Quick Study overlay (full-screen, hides everything else) ─────────────
+  if (quickMode) {
+    return (
+      <QuickStudy
+        units={state.units}
+        onBack={() => {
+          setQuickMode(false);
+          // Clean ?quick=1 from URL without a reload
+          const url = new URL(window.location.href);
+          url.searchParams.delete("quick");
+          window.history.replaceState({}, "", url.toString());
+        }}
+      />
+    );
+  }
+
+  return (
+    <>
+      {/* First-visit onboarding tour */}
+      {showTour && (
+        <OnboardingTour onNavigate={setTab} onDone={() => setShowTour(false)} />
+      )}
+
+      {/* Upgrade modal */}
+      {upgradeMsg && (
+        <div className="upgrade-overlay" onClick={() => setUpgradeMsg(null)}>
+          <div className="upgrade-modal" onClick={(e) => e.stopPropagation()}>
+            <p style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--pencil)", marginTop: 0, marginBottom: 12 }}>
+              Limit reached
+            </p>
+            <h2 style={{ fontFamily: "var(--display)", fontSize: 24, fontWeight: 700, margin: "0 0 10px" }}>
+              Unlock unlimited practice
+            </h2>
+            <p style={{ color: "var(--ink-soft)", fontSize: 14, lineHeight: 1.6, margin: "0 0 22px" }}>
+              {upgradeMsg}
+            </p>
+            <button
+              className="btn"
+              style={{ width: "100%", marginBottom: 10, background: "var(--red)", borderColor: "var(--red)" }}
+              onClick={() => { setUpgradeMsg(null); startCheckout().catch(() => {}); }}
+            >
+              Upgrade to Pro →
+            </button>
+            <button className="btn ghost sm" style={{ width: "100%" }} onClick={() => setUpgradeMsg(null)}>
+              Maybe later
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="shell">
+        {/* Email-verified toast */}
+        {justVerified && (
+          <div style={{ position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", zIndex: 999, background: "#1a7a4a", color: "#fff", padding: "12px 20px", borderRadius: 8, fontSize: 14, fontWeight: 500, display: "flex", alignItems: "center", gap: 12, boxShadow: "0 4px 16px rgba(0,0,0,.18)" }}>
+            ✓ Email confirmed — welcome to CramForge!
+            <button onClick={() => setJustVerified(false)} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", fontSize: 18 }}>×</button>
+          </div>
+        )}
+
+        <aside className="sidebar">
+          <h1 className="wordmark">Cram<span className="red">Forge</span></h1>
+          <p className="tagline">Unlimited exam practice</p>
+
+          {/* Units list */}
+          <div className="eyebrow" style={{ marginBottom: 10 }}>Your units</div>
+          {Object.values(state.units).map((u) => (
+            <button
+              key={u.id}
+              className={"unit-btn" + (state.activeUnitId === u.id ? " active" : "")}
+              onClick={() => { persist({ ...state, activeUnitId: u.id }); if (tab === "study" || tab === "bank" || tab === "account") setTab("materials"); }}
+            >
+              {u.name}
+              <span className="count">{(u.materials || []).length} mat.</span>
+            </button>
+          ))}
+
+          {adding ? (
+            <div style={{ marginTop: 10 }}>
+              <input
+                type="text" value={unitName}
+                onChange={(e) => setUnitName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addUnit()}
+                placeholder="e.g. MATH1051, BIOL2030"
+                autoFocus style={{ marginBottom: 8 }}
+              />
+              <select value={unitSubject} onChange={(e) => setUnitSubject(e.target.value)} style={{ marginBottom: 8 }}>
+                {SUBJECT_TYPES.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button className="btn sm" onClick={addUnit}>Add</button>
+                <button className="btn sm ghost" onClick={() => setAdding(false)}>Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <button className="btn sm ghost" style={{ marginTop: 10, width: "100%" }} onClick={() => setAdding(true)}>
+              + New unit
+            </button>
+          )}
+
+          {/* Quick Study — primary CTA */}
+          <button
+            className="btn"
+            style={{
+              marginTop: 18, width: "100%",
+              background: "var(--red)", borderColor: "var(--red)",
+              fontSize: 12, letterSpacing: "0.06em",
+            }}
+            onClick={() => setQuickMode(true)}
+          >
+            ⚡ Quick Study
+          </button>
+
+          {/* Study together — social features front and centre */}
+          <div className="eyebrow" style={{ margin: "18px 0 8px" }}>Study together</div>
+          <button
+            className={"btn sm" + (tab === "feed" ? "" : " ghost")}
+            style={{ width: "100%", marginBottom: 6, fontSize: 12 }}
+            onClick={() => setTab("feed")}
+          >
+            📸 Study Feed — post & see friends
+          </button>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button
+              className={"btn sm ghost" + (tab === "bank" ? " active" : "")}
+              style={{ flex: 1, fontSize: 11 }}
+              onClick={() => setTab("bank")}
+            >
+              Question bank
+            </button>
+            <button
+              className={"btn sm ghost" + (tab === "study" ? " active" : "")}
+              style={{ flex: 1, fontSize: 11 }}
+              onClick={() => setTab("study")}
+            >
+              Study timer
+            </button>
+          </div>
+
+          {/* Data + unit management */}
+          <div style={{ marginTop: 28 }}>
+            <div className="eyebrow" style={{ marginBottom: 10 }}>Data</div>
+            <button className="btn sm ghost" style={{ width: "100%", marginBottom: 6 }} onClick={() => exportBackup(state)}>
+              Export backup
+            </button>
+            <label className="btn sm ghost" style={{ width: "100%", display: "block", textAlign: "center" }}>
+              Restore backup
+              <input type="file" accept=".json" onChange={importBackup} style={{ display: "none" }} />
+            </label>
+            {unit && (
+              <button
+                className="btn sm ghost"
+                style={{ width: "100%", marginTop: 14, color: "var(--red)", borderColor: "var(--red)" }}
+                onClick={() => deleteUnit(unit.id)}
+              >
+                Delete current unit
+              </button>
+            )}
+          </div>
+        </aside>
+
+        <main className="main">
+          {/* Study timer and question bank are top-level tabs (don't need a unit) */}
+          {tab === "study" && (
+            <>
+              <h2 className="h-display">Study timer</h2>
+              <p className="small muted" style={{ marginBottom: 24 }}>
+                Track your study sessions, compete on the weekly leaderboard, and share your stats with friends.
+              </p>
+              <StudyTimer
+                units={state.units}
+                username={profile?.username}
+                onSessionSaved={() => {}}
+              />
+            </>
+          )}
+
+          {tab === "bank" && (
+            <QuestionBank isPro={isPro} />
+          )}
+
+          {tab === "feed" && (
+            <StudyFeed unitNames={Object.values(state.units || {}).map((u) => u.name)} />
+          )}
+
+          {tab !== "study" && tab !== "bank" && tab !== "feed" && (
+            !unit ? (
+              <>
+                <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+                  <button className="btn ghost sm" onClick={() => supabase.auth.signOut()}>Sign out</button>
+                </div>
+                <h2 className="h-display">Set up your first unit</h2>
+                <div className="notice">
+                  Add a unit in the sidebar (e.g. MATH1051, BIOL2030), then upload your lecture notes.
+                  CramForge reads them and generates unlimited exam-style questions with worked solutions
+                  — and learns which topics keep tripping you up.
+                </div>
+              </>
+            ) : (
+              <>
+                <nav className="tabs" role="tablist">
+                  {[
+                    ["materials", "Materials"],
+                    ["practice",  "Practice"],
+                    ["exam",      "Exam"],
+                    ["progress",  "Progress"],
+                    ["account",   "Account"],
+                  ].map(([id, label]) => (
+                    <button
+                      key={id} role="tab" aria-selected={tab === id}
+                      className={"tab" + (tab === id ? " active" : "")}
+                      onClick={() => setTab(id)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </nav>
+
+                {tab === "materials" && <Materials unit={unit} updateUnit={updateUnit} />}
+                {tab === "practice" && (
+                  <Practice
+                    unit={unit} updateUnit={updateUnit}
+                    topics={unitTopics(unit)} notes={unitNotes(unit)} weak={weakTopics(unit)}
+                    isPro={isPro}
+                  />
+                )}
+                {tab === "exam" && (
+                  <Exam
+                    unit={unit} updateUnit={updateUnit}
+                    topics={unitTopics(unit)} notes={unitNotes(unit)} weak={weakTopics(unit)}
+                    isPro={isPro}
+                  />
+                )}
+                {tab === "progress" && <Progress unit={unit} weak={weakTopics(unit)} />}
+                {tab === "account" && (
+                  <Account
+                    profile={profile}
+                    onProfileUpdate={(updated) => setProfile((p) => ({ ...p, ...updated }))}
+                  />
+                )}
+              </>
+            )
+          )}
+        </main>
+      </div>
+
+      {/* PWA install banner — shown on first visit on Android Chrome */}
+      {showInstall && !window.matchMedia("(display-mode: standalone)").matches && (
+        <div className="pwa-install-banner">
+          <p><strong>Add CramForge to your home screen</strong> for quick study access anywhere.</p>
+          <button
+            className="install-btn"
+            onClick={() => {
+              installPrompt?.prompt();
+              setShowInstall(false);
+            }}
+          >
+            Install
+          </button>
+          <button className="dismiss-btn" onClick={() => setShowInstall(false)}>
+            Later
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
+
+=== src/Auth.jsx ===
+import { useState, useEffect } from "react";
+import { supabase } from "./supabase.js";
+import { generateAnon } from "./api.js";
+
+// Static demo shown before the user does anything — real product feel, zero API call
+function DemoCard() {
+  const [showSolution, setShowSolution] = useState(false);
+  const [showMarking, setShowMarking] = useState(false);
+  return (
+    <div style={{ marginBottom: 28 }}>
+      <div className="eyebrow" style={{ marginBottom: 12 }}>
+        Example — generated from lecture notes
+      </div>
+      <div className="booklet" style={{ marginBottom: 10 }}>
+        <span className="qtopic">Differential Calculus</span>
+        <div className="qhead">
+          <span className="qnum">Question 1</span>
+          <span className="qmarks">(6 marks)</span>
+        </div>
+        <p className="qtext">
+          Find the stationary points of f(x) = x³ − 3x² + 4 and classify each as a local maximum, local minimum, or point of inflection.
+        </p>
+        <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+          <button className="btn ghost sm" onClick={() => setShowMarking(!showMarking)}>
+            {showMarking ? "Hide marking" : "See AI marking"}
+          </button>
+          <button className="btn ghost sm" onClick={() => setShowSolution(!showSolution)}>
+            {showSolution ? "Hide solution" : "See worked solution"}
+          </button>
+        </div>
+        {showMarking && (
+          <div style={{ marginTop: 14, display: "flex", gap: 14, alignItems: "flex-start", flexWrap: "wrap" }}>
+            <span className="stamp amber">4/6</span>
+            <div className="marking amber" style={{ flex: 1, minWidth: 220, marginTop: 0 }}>
+              <span className="who">Examiner's note · concept error</span>
+              Correct differentiation and roots (x = 0, x = 2). Classification error — you need f″(x) to classify: f″(0) = −6 &lt; 0 → local max; f″(2) = 6 &gt; 0 → local min. Stating both are minima costs 2 marks.
+            </div>
+          </div>
+        )}
+        {showSolution && (
+          <div className="solution">
+            <span className="label">Model solution</span>
+            {`f'(x) = 3x² − 6x = 3x(x − 2) = 0  →  x = 0, x = 2\n\nf''(x) = 6x − 6\nf''(0) = −6 < 0  →  local maximum at (0, 4)\nf''(2) = 6 > 0   →  local minimum at (2, 0)`}
+          </div>
+        )}
+      </div>
+      <p className="mono small" style={{ color: "var(--pencil)", marginTop: 4 }}>
+        Generated in ~8 seconds from 3 pages of lecture notes.
+      </p>
+    </div>
+  );
+}
+
+// Anonymous single-question trial — user pastes their own notes
+function AnonTrial({ onSignupPrompt }) {
+  const [notes, setNotes] = useState("");
+  const [question, setQuestion] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const alreadyTried = localStorage.getItem("cf_tried");
+
+  const run = async () => {
+    if (!notes.trim() || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const out = await generateAnon({ notes: notes.trim(), difficulty: "medium" });
+      setQuestion(out.questions?.[0] || null);
+      localStorage.setItem("cf_tried", "1");
+    } catch (e) {
+      setError(e.message);
+    }
+    setBusy(false);
+  };
+
+  if (alreadyTried && !question) {
+    return (
+      <div className="notice" style={{ marginBottom: 24, textAlign: "center" }}>
+        <p style={{ margin: "0 0 10px", fontWeight: 500 }}>You've used your free preview.</p>
+        <p className="small muted" style={{ margin: "0 0 14px" }}>Sign up free to save progress, track weak topics, and get 5 question sets a day.</p>
+        <button className="btn" onClick={onSignupPrompt}>Create free account →</button>
+      </div>
+    );
+  }
+
+  if (question) {
+    return (
+      <div style={{ marginBottom: 28 }}>
+        <div className="eyebrow" style={{ marginBottom: 10 }}>Your question — from your notes</div>
+        <div className="booklet">
+          <span className="qtopic">{question.topic}</span>
+          <div className="qhead">
+            <span className="qnum">Question 1</span>
+            <span className="qmarks">({question.marks} marks)</span>
+          </div>
+          <p className="qtext">{question.text}</p>
+          <div className="solution" style={{ marginTop: 14 }}>
+            <span className="label">Worked solution</span>
+            {question.solution}
+          </div>
+        </div>
+        <div style={{ background: "var(--green-soft)", border: "1.5px solid var(--green)", borderRadius: 8, padding: "16px 18px", marginTop: 12 }}>
+          <p style={{ margin: "0 0 10px", fontWeight: 600, color: "var(--green)" }}>
+            Sign up free to keep going
+          </p>
+          <p className="small muted" style={{ margin: "0 0 14px" }}>
+            Save this unit, get 5 question sets a day, track which topics you keep getting wrong, and unlock timed exam mode.
+          </p>
+          <button className="btn" style={{ background: "var(--green)", borderColor: "var(--green)" }} onClick={onSignupPrompt}>
+            Create free account →
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginBottom: 28 }}>
+      <div className="eyebrow" style={{ marginBottom: 8 }}>Try it — paste your notes</div>
+      <p className="small muted" style={{ marginBottom: 10 }}>
+        Paste a few paragraphs from your lecture notes or a past paper. No account needed.
+      </p>
+      <textarea
+        rows={5}
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+        placeholder="Paste your lecture notes, a topic summary, or a past exam question…"
+      />
+      {error && <p className="error-text">{error}</p>}
+      <button
+        className="btn"
+        style={{ marginTop: 10, width: "100%" }}
+        onClick={run}
+        disabled={busy || !notes.trim()}
+      >
+        {busy ? <><span className="spin">◌</span> Writing question…</> : "Generate a question from my notes →"}
+      </button>
+      <p className="mono small" style={{ color: "var(--pencil)", marginTop: 6, textAlign: "center" }}>
+        One free preview · No signup
+      </p>
+    </div>
+  );
+}
+
+export default function Auth() {
+  const [mode, setMode] = useState("signin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [error, setError] = useState("");
+
+  // Capture referral code from URL and persist it
+  useEffect(() => {
+    const ref = new URLSearchParams(window.location.search).get("ref");
+    if (ref) localStorage.setItem("cf_ref", ref);
+  }, []);
+
+  // OAuth sign-in — passes referral code through state so it survives the redirect
+  const signInWith = async (provider) => {
+    const ref = localStorage.getItem("cf_ref");
+    await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: window.location.origin,
+        queryParams: ref ? { referred_by: ref } : {},
+      },
+    });
+  };
+
+  const submit = async () => {
+    if (!email.trim() || !password || busy) return;
+    setBusy(true);
+    setError("");
+    setMsg("");
+    try {
+      if (mode === "signup") {
+        const ref = localStorage.getItem("cf_ref");
+        const { error } = await supabase.auth.signUp({
+          email: email.trim(),
+          password,
+          options: {
+            emailRedirectTo: window.location.origin,
+            data: ref ? { referred_by: ref } : {},
+          },
+        });
+        if (error) throw error;
+        setMsg("Account created — check your inbox to confirm your email, then sign in.");
+        setMode("signin");
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
+        if (error) throw error;
+      }
+    } catch (e) {
+      setError(e.message || "Something went wrong.");
+    }
+    setBusy(false);
+  };
+
+  return (
+    <div style={{ maxWidth: 960, margin: "0 auto", padding: "48px 20px 80px" }}>
+      {/* Hero */}
+      <div style={{ textAlign: "center", marginBottom: 40 }}>
+        <h1 className="wordmark" style={{ fontSize: 44, display: "inline-block", marginBottom: 8 }}>
+          Cram<span className="red">Forge</span>
+        </h1>
+        <p style={{ fontSize: 18, color: "var(--ink-soft)", margin: "0 0 8px" }}>
+          Upload your lecture notes. Get unlimited exam-style questions with worked solutions and AI marking.
+        </p>
+        <p className="mono small" style={{ color: "var(--pencil)" }}>
+          Free · No credit card · Works for any uni subject
+        </p>
+      </div>
+
+      {/* Two-column: demo/trial left, auth right */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 40, alignItems: "start" }} className="auth-grid">
+        {/* Left col */}
+        <div>
+          <DemoCard />
+          <AnonTrial onSignupPrompt={() => setMode("signup")} />
+        </div>
+
+        {/* Right col — sign-in / sign-up form */}
+        <div>
+          <div className="booklet" style={{ marginBottom: 16 }}>
+            <div className="eyebrow" style={{ marginBottom: 14 }}>
+              {mode === "signin" ? "Sign in" : "Create your free account"}
+            </div>
+            <label className="eyebrow" htmlFor="email">Email</label>
+            <input
+              id="email"
+              type="text"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@uni.edu.au"
+              autoComplete="email"
+            />
+            <label className="eyebrow" htmlFor="pw" style={{ marginTop: 12 }}>Password</label>
+            <input
+              id="pw"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && submit()}
+              autoComplete={mode === "signin" ? "current-password" : "new-password"}
+            />
+            <button className="btn" style={{ width: "100%", marginTop: 16 }} onClick={submit} disabled={busy}>
+              {busy ? "Working…" : mode === "signin" ? "Sign in" : "Sign up free"}
+            </button>
+            <button
+              className="btn ghost sm"
+              style={{ width: "100%", marginTop: 8 }}
+              onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); setMsg(""); }}
+            >
+              {mode === "signin" ? "New here? Create an account" : "Have an account? Sign in"}
+            </button>
+            {msg && <p className="small" style={{ color: "var(--green)", marginTop: 10 }}>{msg}</p>}
+            {error && <p className="error-text">{error}</p>}
+
+            {/* Divider */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "14px 0" }}>
+              <div style={{ flex: 1, height: 1, background: "var(--line)" }} />
+              <span className="eyebrow">or</span>
+              <div style={{ flex: 1, height: 1, background: "var(--line)" }} />
+            </div>
+
+            {/* OAuth buttons */}
+            <button
+              className="btn ghost"
+              style={{ width: "100%", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}
+              onClick={() => signInWith("google")}
+            >
+              <svg width="18" height="18" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z" fill="#4285F4"/>
+                <path d="M6.3 14.7l7 5.1C15 16.1 19.2 13 24 13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 16.3 2 9.7 7.4 6.3 14.7z" fill="#EA4335"/>
+                <path d="M24 46c5.5 0 10.4-1.9 14.3-5l-6.6-5.4C29.8 37.5 27 38.5 24 38.5c-6.1 0-10.7-3.2-11.8-7.5l-7 5.4C8.1 42.2 15.5 46 24 46z" fill="#34A853"/>
+                <path d="M44.5 20H24v8.5h11.8c-.9 2.6-2.5 4.8-4.7 6.3l6.6 5.4c3.9-3.6 6.3-8.9 6.3-15.2 0-1.3-.2-2.7-.5-4z" fill="#FBBC05"/>
+              </svg>
+              Continue with Google
+            </button>
+            <button
+              className="btn ghost"
+              style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}
+              onClick={() => signInWith("apple")}
+            >
+              <svg width="18" height="18" viewBox="0 0 814 1000" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <path d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76 0-103.7 40.8-165.9 40.8s-105-57.8-155.5-127.4C46 382.8-.6 325.7 0 246.8c.6-79 56.6-120.1 106.6-120.1 32.5 0 71.9 21.4 97.9 21.4 24.9 0 64.4-23.4 105-23.4 16.5 0 60.3 2.3 91.9 42.8 2.9 4 53.4 48.8 53.4 48.8-32 30.7-47.1 61.2-47.1 100.1 0 68.4 58.4 115 142.8 115 15.7 0 64 0 91.5-14.6 15.1-8 44.7-25.6 44.7-25.6z"/>
+              </svg>
+              Continue with Apple
+            </button>
+          </div>
+
+          {/* Feature list */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {[
+              ["Unlimited practice questions", "from your own notes — not generic textbook problems"],
+              ["AI marking with partial credit", "tells you if it's a concept error, algebra slip, or arithmetic mistake"],
+              ["Weak topic tracker", "biases new questions toward the topics you keep getting wrong"],
+              ["Timed exam mode", "full paper simulation with the clock running"],
+              ["Free: 5 question sets/day", "Pro: unlimited · $8.99/month · cancel any time"],
+            ].map(([title, desc]) => (
+              <div key={title} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                <span style={{ color: "var(--green)", fontWeight: 700, flexShrink: 0, marginTop: 1 }}>✓</span>
+                <span className="small" style={{ color: "var(--ink-soft)" }}>
+                  <strong style={{ color: "var(--ink)" }}>{title}</strong> — {desc}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+=== src/ClassManager.jsx ===
+import { useState, useEffect } from "react";
+import { createClass, joinClass, leaveClass, deleteClass, loadClasses } from "./api.js";
+
+function copyToClipboard(text) {
+  navigator.clipboard?.writeText(text).catch(() => {});
+}
+
+function ClassCard({ cls, role, onAction }) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = () => {
+    copyToClipboard(cls.code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="booklet" style={{ marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontFamily: "var(--display)", fontSize: 17, fontWeight: 600, marginBottom: 4 }}>
+            {cls.name}
+          </div>
+          <div className="small muted">
+            {role === "tutor" ? "You created this class" : "Joined"} ·{" "}
+            {new Date(cls.created_at || cls.joinedAt).toLocaleDateString("en-AU", { month: "short", year: "numeric" })}
+          </div>
+          {role === "tutor" && (
+            <div className="small muted">
+              {cls.memberCount || 0} student{cls.memberCount !== 1 ? "s" : ""}
+            </div>
+          )}
+        </div>
+
+        {/* Join code */}
+        <div style={{ textAlign: "center" }}>
+          <div style={{
+            fontFamily: "var(--mono)", fontSize: 22, fontWeight: 700,
+            letterSpacing: "0.14em", color: "var(--ink)",
+            background: "var(--highlight)", padding: "6px 12px", borderRadius: 6,
+            userSelect: "all"
+          }}>
+            {cls.code}
+          </div>
+          {role === "tutor" && (
+            <button className="btn ghost sm" style={{ marginTop: 6, width: "100%" }} onClick={copy}>
+              {copied ? "✓ Copied" : "Copy code"}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+        {role === "tutor" && (
+          <button
+            className="btn ghost sm"
+            style={{ color: "var(--red)", borderColor: "var(--red)" }}
+            onClick={() => onAction("delete", cls.id)}
+          >
+            Delete class
+          </button>
+        )}
+        {role === "student" && (
+          <button
+            className="btn ghost sm"
+            style={{ color: "var(--red)", borderColor: "var(--red)" }}
+            onClick={() => onAction("leave", cls.id)}
+          >
+            Leave class
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function ClassManager() {
+  const [classes, setClasses] = useState({ owned: [], joined: [] });
+  const [loading, setLoading] = useState(true);
+  const [view,    setView]    = useState("list"); // list | create | join
+  // Create form
+  const [newName, setNewName] = useState("");
+  const [createBusy, setCreateBusy] = useState(false);
+  const [createMsg,  setCreateMsg]  = useState("");
+  // Join form
+  const [joinCode, setJoinCode]  = useState("");
+  const [joinBusy, setJoinBusy] = useState(false);
+  const [joinMsg,  setJoinMsg]  = useState("");
+
+  const reload = () => {
+    setLoading(true);
+    loadClasses().then(setClasses).catch(() => {}).finally(() => setLoading(false));
+  };
+
+  useEffect(reload, []);
+
+  const handleCreate = async () => {
+    if (!newName.trim() || createBusy) return;
+    setCreateBusy(true);
+    setCreateMsg("");
+    try {
+      await createClass(newName.trim());
+      setNewName("");
+      setView("list");
+      reload();
+    } catch (e) {
+      setCreateMsg(e.message);
+    }
+    setCreateBusy(false);
+  };
+
+  const handleJoin = async () => {
+    if (!joinCode.trim() || joinBusy) return;
+    setJoinBusy(true);
+    setJoinMsg("");
+    try {
+      const { class: cls, alreadyMember } = await joinClass(joinCode.trim().toUpperCase());
+      if (alreadyMember) {
+        setJoinMsg(`You're already in "${cls.name}".`);
+      } else {
+        setJoinMsg(`Joined "${cls.name}" successfully!`);
+        setJoinCode("");
+        reload();
+      }
+    } catch (e) {
+      setJoinMsg(e.message);
+    }
+    setJoinBusy(false);
+  };
+
+  const handleAction = async (action, id) => {
+    if (action === "delete" && !window.confirm("Delete this class and remove all students? This can't be undone.")) return;
+    if (action === "leave"  && !window.confirm("Leave this class?")) return;
+    try {
+      if (action === "delete") await deleteClass(id);
+      if (action === "leave")  await leaveClass(id);
+      reload();
+    } catch (e) {
+      alert(e.message);
+    }
+  };
+
+  const totalClasses = classes.owned.length + classes.joined.length;
+
+  return (
+    <>
+      <div className="eyebrow" style={{ marginBottom: 16, marginTop: 32 }}>Class codes</div>
+
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+        {["list", "create", "join"].map((v) => (
+          <button
+            key={v}
+            className="btn ghost sm"
+            style={view === v ? { background: "var(--ink)", color: "#fff", borderColor: "var(--ink)" } : {}}
+            onClick={() => setView(v)}
+          >
+            {v === "list" ? `My classes${totalClasses > 0 ? ` (${totalClasses})` : ""}` : v === "create" ? "+ Create class" : "Join a class"}
+          </button>
+        ))}
+      </div>
+
+      {/* List */}
+      {view === "list" && (
+        <>
+          {loading ? (
+            <div className="notice"><span className="spin">◌</span> Loading classes…</div>
+          ) : totalClasses === 0 ? (
+            <div className="notice">
+              You haven't created or joined any classes yet.
+              <br />
+              <strong>Tutors:</strong> create a class and share the 6-character code with your students.
+              <br />
+              <strong>Students:</strong> enter the code your tutor gave you.
+            </div>
+          ) : (
+            <>
+              {classes.owned.length > 0 && (
+                <>
+                  <div className="eyebrow" style={{ marginBottom: 10 }}>Classes you teach</div>
+                  {classes.owned.map((cls) => (
+                    <ClassCard key={cls.id} cls={cls} role="tutor" onAction={handleAction} />
+                  ))}
+                </>
+              )}
+              {classes.joined.length > 0 && (
+                <>
+                  <div className="eyebrow" style={{ marginBottom: 10, marginTop: 16 }}>Classes you're in</div>
+                  {classes.joined.map((cls) => (
+                    <ClassCard key={cls.id} cls={cls} role="student" onAction={handleAction} />
+                  ))}
+                </>
+              )}
+            </>
+          )}
+        </>
+      )}
+
+      {/* Create */}
+      {view === "create" && (
+        <div className="booklet">
+          <div className="eyebrow" style={{ marginBottom: 12 }}>Create a class</div>
+          <p className="small muted" style={{ marginTop: 0, marginBottom: 16 }}>
+            Students join using the 6-character code. Share question sets with them via the bank.
+          </p>
+          <label className="eyebrow" htmlFor="class-name">Class name</label>
+          <input
+            id="class-name"
+            type="text"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+            placeholder="e.g. MATH1051 Tutorials, Year 12 Chemistry"
+            style={{ marginBottom: 12 }}
+          />
+          <button className="btn" onClick={handleCreate} disabled={createBusy || !newName.trim()}>
+            {createBusy ? "Creating…" : "Create class →"}
+          </button>
+          {createMsg && <p className="error-text">{createMsg}</p>}
+        </div>
+      )}
+
+      {/* Join */}
+      {view === "join" && (
+        <div className="booklet">
+          <div className="eyebrow" style={{ marginBottom: 12 }}>Join a class</div>
+          <p className="small muted" style={{ marginTop: 0, marginBottom: 16 }}>
+            Enter the 6-character code your tutor shared with you.
+          </p>
+          <label className="eyebrow" htmlFor="join-code">Class code</label>
+          <input
+            id="join-code"
+            type="text"
+            value={joinCode}
+            onChange={(e) => setJoinCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6))}
+            onKeyDown={(e) => e.key === "Enter" && handleJoin()}
+            placeholder="e.g. MATH01"
+            style={{ fontFamily: "var(--mono)", letterSpacing: "0.2em", fontSize: 18, textTransform: "uppercase", marginBottom: 12 }}
+            maxLength={6}
+          />
+          <button className="btn" onClick={handleJoin} disabled={joinBusy || joinCode.length < 6}>
+            {joinBusy ? "Joining…" : "Join class →"}
+          </button>
+          {joinMsg && (
+            <p className={joinMsg.includes("success") || joinMsg.includes("already") ? "small" : "error-text"}
+               style={joinMsg.includes("success") ? { color: "var(--green)" } : {}}>
+              {joinMsg}
+            </p>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+=== src/Exam.jsx ===
+import { useState, useEffect, useRef } from "react";
+import { generateQuestions, gradeAttempt, exportPDF } from "./api.js";
+import { recordResult } from "./storage.js";
+import MathText from "./MathText.jsx";
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement("a");
+  a.href    = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export default function Exam({ unit, updateUnit, topics, notes, weak, isPro }) {
+  const [phase, setPhase] = useState("setup"); // setup | running | grading | results
+  const [count, setCount] = useState(4);
+  const [minutes, setMinutes] = useState(30);
+  const [questions, setQuestions] = useState([]);
+  const [attempts, setAttempts] = useState([]);
+  const [results, setResults] = useState([]);
+  const [remaining, setRemaining] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [gradeProgress, setGradeProgress] = useState(0);
+  const [exporting, setExporting] = useState(false);
+  const [exportMsg, setExportMsg] = useState("");
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    if (phase !== "running") return;
+    timerRef.current = setInterval(() => {
+      setRemaining((r) => {
+        if (r <= 1) {
+          clearInterval(timerRef.current);
+          submitPaper();
+          return 0;
+        }
+        return r - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timerRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
+  const startExam = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const out = await generateQuestions({
+        unitName: unit.name,
+        notes,
+        topics,
+        difficulty: "medium",
+        count,
+        weakTopics: weak,
+        examMode: true,
+        subjectType: unit.subjectType || "stem",
+      });
+      const qs = out.questions || [];
+      setQuestions(qs);
+      setAttempts(qs.map(() => ""));
+      setRemaining(minutes * 60);
+      setPhase("running");
+    } catch (e) {
+      setError(e.message);
+    }
+    setBusy(false);
+  };
+
+  const submitPaper = async () => {
+    clearInterval(timerRef.current);
+    setPhase("grading");
+    setGradeProgress(0);
+    const out = [];
+    let u = unit;
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
+      const attempt = attemptsRef.current[i];
+      if (!attempt || !attempt.trim()) {
+        out.push({ score: 0, maxMarks: q.marks, errorType: "incomplete", feedback: "No attempt submitted.", verdict: "incorrect" });
+      } else {
+        try {
+          const r = await gradeAttempt({
+            question: q.text,
+            solution: q.solution,
+            marks: q.marks,
+            attempt: attempt.trim(),
+          });
+          out.push(r);
+          u = recordResult(u, {
+            topic: q.topic,
+            score: r.score,
+            max: r.maxMarks,
+            errorType: r.errorType,
+            mode: "exam",
+          });
+        } catch (e) {
+          out.push({ score: 0, maxMarks: q.marks, errorType: "none", feedback: "Grading failed for this question: " + e.message, verdict: "incorrect" });
+        }
+      }
+      setGradeProgress(i + 1);
+    }
+    updateUnit(u);
+    setResults(out);
+    setPhase("results");
+  };
+
+  // keep latest attempts visible to the timer-triggered submit
+  const attemptsRef = useRef(attempts);
+  attemptsRef.current = attempts;
+
+  const fmt = (s) =>
+    `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+
+  if (!notes) {
+    return (
+      <div className="notice">
+        Upload course materials first (Materials tab) — exam mode builds a timed paper from your
+        actual unit content.
+      </div>
+    );
+  }
+
+  if (phase === "setup") {
+    return (
+      <>
+        <h2 className="h-display">Exam mode — {unit.name}</h2>
+        <div className="booklet">
+          <p className="small muted" style={{ marginTop: 0 }}>
+            A timed paper across all your topics{weak.length ? ", biased toward your weak spots" : ""}.
+            No solutions until you submit. The clock submits for you at zero.
+          </p>
+          <div className="row">
+            <div>
+              <label className="eyebrow" htmlFor="eq">Questions</label>
+              <select id="eq" value={count} onChange={(e) => setCount(Number(e.target.value))}>
+                {[3, 4, 5, 6, 8, 10].map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="eyebrow" htmlFor="em">Time limit</label>
+              <select id="em" value={minutes} onChange={(e) => setMinutes(Number(e.target.value))}>
+                {[15, 30, 45, 60, 90, 120].map((n) => <option key={n} value={n}>{n} min</option>)}
+              </select>
+            </div>
+            <div style={{ flex: "0 0 auto" }}>
+              <button className="btn red" onClick={startExam} disabled={busy}>
+                {busy ? "Setting the paper…" : "Start exam"}
+              </button>
+            </div>
+          </div>
+          {error && <p className="error-text">{error}</p>}
+        </div>
+      </>
+    );
+  }
+
+  if (phase === "running") {
+    const total = questions.reduce((a, q) => a + q.marks, 0);
+    return (
+      <>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
+          <h2 className="h-display" style={{ margin: 0 }}>
+            {unit.name} — practice paper <span className="mono small muted">({total} marks)</span>
+          </h2>
+          <span className={"timer" + (remaining < 300 ? " low" : "")}>{fmt(remaining)}</span>
+        </div>
+
+        {questions.map((q, i) => (
+          <div className="booklet" key={i}>
+            <span className="qtopic">{q.topic}</span>
+            <div className="qhead">
+              <span className="qnum">Question {i + 1}</span>
+              <span className="qmarks">({q.marks} marks)</span>
+            </div>
+            <MathText block className="qtext">{q.text}</MathText>
+            <label className="eyebrow" htmlFor={`ex-${i}`}>Your working</label>
+            <textarea
+              id={`ex-${i}`}
+              rows={6}
+              value={attempts[i]}
+              onChange={(e) => {
+                const next = [...attempts];
+                next[i] = e.target.value;
+                setAttempts(next);
+              }}
+            />
+          </div>
+        ))}
+
+        <button className="btn red" onClick={submitPaper}>
+          Submit paper
+        </button>
+      </>
+    );
+  }
+
+  if (phase === "grading") {
+    return (
+      <div className="notice">
+        <span className="spin">◌</span> Marking your paper… {gradeProgress}/{questions.length}{" "}
+        questions graded. Don't close the tab.
+      </div>
+    );
+  }
+
+  // results
+  const totalScore = results.reduce((a, r) => a + r.score, 0);
+  const totalMax   = results.reduce((a, r) => a + r.maxMarks, 0);
+  const pct        = totalMax ? Math.round((totalScore / totalMax) * 100) : 0;
+  const tone       = pct >= 70 ? "green" : pct >= 50 ? "amber" : "";
+
+  const handleExportPDF = async () => {
+    setExporting(true);
+    setExportMsg("");
+    try {
+      const blob = await exportPDF({
+        questions,
+        unitName:    unit.name,
+        subjectType: unit.subjectType || "stem",
+      });
+      const safeName = unit.name.replace(/[^a-zA-Z0-9]/g, "-").toLowerCase();
+      downloadBlob(blob, `cramforge-${safeName}.pdf`);
+      setExportMsg(isPro ? "" : "Demo exported — upgrade to Pro for unlimited PDF exports.");
+    } catch (e) {
+      setExportMsg(e.message);
+    }
+    setExporting(false);
+  };
+
+  return (
+    <>
+      <h2 className="h-display">Results — {unit.name}</h2>
+      <div className="booklet" style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
+        <span className={`stamp ${tone}`} style={{ fontSize: 28 }}>
+          {totalScore}/{totalMax}
+        </span>
+        <div>
+          <div className="mono" style={{ fontSize: 22, fontWeight: 700 }}>{pct}%</div>
+          <div className="small muted">
+            {pct >= 80 ? "HD territory. Keep this up." : pct >= 70 ? "Solid distinction-level work." : pct >= 50 ? "Passing — check the examiner's notes below." : "Rough paper — the feedback below shows exactly where it went."}
+          </div>
+        </div>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button
+            className="btn ghost sm"
+            style={{ display: "flex", alignItems: "center", gap: 6 }}
+            onClick={handleExportPDF}
+            disabled={exporting}
+            title={isPro ? "Export exam paper as PDF" : "1 free demo export"}
+          >
+            {exporting ? <><span className="spin">◌</span> PDF…</> : <>📄 PDF{isPro ? "" : " (1 free)"}</>}
+          </button>
+          <button className="btn ghost" onClick={() => setPhase("setup")}>New paper</button>
+        </div>
+      </div>
+      {exportMsg && (
+        <p className="small" style={{ color: exportMsg.includes("Demo") ? "var(--amber)" : "var(--red)", marginBottom: 12 }}>
+          {exportMsg}
+        </p>
+      )}
+
+      {questions.map((q, i) => {
+        const r = results[i];
+        const t = r.verdict === "correct" ? "green" : r.verdict === "partial" ? "amber" : "";
+        return (
+          <div className="booklet" key={i}>
+            <span className="qtopic">{q.topic}</span>
+            <div className="qhead">
+              <span className="qnum">Question {i + 1}</span>
+              <span className={`stamp ${t}`} style={{ fontSize: 15 }}>
+                {r.score}/{r.maxMarks}
+              </span>
+            </div>
+            <MathText block className="qtext">{q.text}</MathText>
+            {attempts[i] && attempts[i].trim() && (
+              <div className="solution" style={{ borderTop: "none", paddingTop: 0 }}>
+                <span className="label">Your working</span>
+                {attempts[i]}
+              </div>
+            )}
+            <div className={`marking ${t}`}>
+              <span className="who">
+                Examiner's note{r.errorType !== "none" ? ` · ${r.errorType} error` : ""}
+              </span>
+              {r.feedback}
+            </div>
+            <div className="solution">
+              <span className="label">Model solution</span>
+              <MathText block>{q.solution}</MathText>
+            </div>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+=== src/Materials.jsx ===
+import { useState } from "react";
+import { ingestMaterial, fileToBase64, fileToText } from "./api.js";
+
+const MAX_PDF_MB = 3;
+
+export default function Materials({ unit, updateUnit }) {
+  const [pasted, setPasted] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState("");
+  const [error, setError] = useState("");
+
+  const addMaterial = (m) => {
+    updateUnit({ ...unit, materials: [...(unit.materials || []), m] });
+  };
+
+  const removeMaterial = (idx) => {
+    const materials = (unit.materials || []).filter((_, i) => i !== idx);
+    updateUnit({ ...unit, materials });
+  };
+
+  const ingest = async (payload, label) => {
+    setBusy(true);
+    setError("");
+    setStatus(`Reading ${label}… this takes ~20 seconds`);
+    try {
+      const out = await ingestMaterial({ ...payload, unitName: unit.name });
+      addMaterial({
+        title: out.materialTitle || label,
+        topics: out.topics || [],
+        notes: out.notes || "",
+      });
+      setStatus("");
+      setPasted("");
+    } catch (e) {
+      setError(e.message);
+      setStatus("");
+    }
+    setBusy(false);
+  };
+
+  const handleFiles = async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    for (const file of files) {
+      if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+        if (file.size > MAX_PDF_MB * 1024 * 1024) {
+          setError(`${file.name} is over ${MAX_PDF_MB}MB. Split it (e.g. per topic) and upload the parts.`);
+          continue;
+        }
+        const pdfBase64 = await fileToBase64(file);
+        await ingest({ pdfBase64 }, file.name);
+      } else {
+        const text = await fileToText(file);
+        await ingest({ text }, file.name);
+      }
+    }
+  };
+
+  return (
+    <>
+      <h2 className="h-display">Course materials — {unit.name}</h2>
+
+      <div className="booklet">
+        <div className="eyebrow" style={{ marginBottom: 12 }}>
+          Upload notes, past papers, or summaries
+        </div>
+        <p className="small muted" style={{ marginTop: 0 }}>
+          PDF (max {MAX_PDF_MB}MB each), .txt or .md files. CramForge extracts the topics and
+          everything needed to write exam questions — formulas, methods, definitions.
+        </p>
+        <label className="btn" style={{ display: "inline-block" }}>
+          {busy ? "Working…" : "Choose files"}
+          <input
+            type="file"
+            accept=".pdf,.txt,.md,text/plain,application/pdf"
+            multiple
+            onChange={handleFiles}
+            disabled={busy}
+            style={{ display: "none" }}
+          />
+        </label>
+
+        <div style={{ margin: "20px 0 8px" }} className="eyebrow">
+          Or paste content directly
+        </div>
+        <textarea
+          rows={5}
+          value={pasted}
+          onChange={(e) => setPasted(e.target.value)}
+          placeholder="Paste lecture notes, a topic list, or typed-up past paper questions…"
+          disabled={busy}
+        />
+        <button
+          className="btn"
+          style={{ marginTop: 10 }}
+          disabled={busy || !pasted.trim()}
+          onClick={() => ingest({ text: pasted.trim() }, "Pasted notes")}
+        >
+          {busy ? "Working…" : "Add pasted notes"}
+        </button>
+
+        {status && (
+          <p className="small mono" style={{ marginTop: 12 }}>
+            <span className="spin">◌</span> {status}
+          </p>
+        )}
+        {error && <p className="error-text">{error}</p>}
+      </div>
+
+      <div className="eyebrow" style={{ marginBottom: 12 }}>
+        {(unit.materials || []).length
+          ? `Loaded materials (${unit.materials.length})`
+          : "No materials yet"}
+      </div>
+
+      {(unit.materials || []).map((m, i) => (
+        <div className="booklet" key={i}>
+          <div className="qhead">
+            <span className="qnum">{m.title}</span>
+            <button className="btn sm ghost" onClick={() => removeMaterial(i)}>
+              Remove
+            </button>
+          </div>
+          <div className="chips">
+            {(m.topics || []).map((t) => (
+              <span className="chip" key={t} style={{ cursor: "default" }}>
+                {t}
+              </span>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {!(unit.materials || []).length && (
+        <div className="notice">
+          The more you give it, the better the questions. Lecture slides exported as PDF, your own
+          summary notes, and one past paper is the ideal starter pack.
+        </div>
+      )}
+    </>
+  );
+}
+
+=== src/MathText.jsx ===
+// MathText — renders text that may contain KaTeX math expressions.
+// Inline math: $...$   |   Display math: $$...$$
+//
+// Usage:
+//   <MathText>{question.text}</MathText>
+//   <MathText block className="qtext">{question.text}</MathText>
+
+import { useEffect, useRef } from "react";
+
+const DELIMITERS = [
+  { left: "$$", right: "$$", display: true },
+  { left: "$", right: "$", display: false },
+];
+
+function renderMath(el) {
+  if (!el) return;
+  if (window.renderMathInElement) {
+    window.renderMathInElement(el, { delimiters: DELIMITERS, throwOnError: false });
+  } else if (window._katexReady && window.katex) {
+    // Fallback: manual scan for $...$ patterns (edge case on slow loads)
+    window._katexReady = true;
+  }
+}
+
+export default function MathText({ children, block, className, style }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    renderMath(ref.current);
+  }); // no dep array — re-render on every update so new content is processed
+
+  const Tag = block ? "div" : "span";
+  return (
+    <Tag ref={ref} className={className} style={style}>
+      {children}
+    </Tag>
+  );
+}
+
+=== src/OnboardingTour.jsx ===
+// src/OnboardingTour.jsx — first-visit walkthrough.
+// Shows once (localStorage flag), walks new users through the social side first,
+// then points them at Materials to upload their notes.
+
+import { useState } from "react";
+
+const FLAG = "cramforge-onboarded-v1";
+
+export function shouldShowOnboarding() {
+  try {
+    return !localStorage.getItem(FLAG);
+  } catch {
+    return false;
+  }
+}
+
+const STEPS = [
+  {
+    icon: "👋",
+    title: "Welcome to CramForge",
+    body: "Upload your lecture notes and get unlimited exam-style questions, marked like a real exam. But first — the part nobody else has:",
+    cta: null,
+  },
+  {
+    icon: "📸",
+    title: "Study with your mates",
+    body: "The Feed is BeReal for studying. Snap a photo mid-session, tag the unit and your minutes, and it shows up for your friends. Add friends by username — guilt-tripping each other into revision is the whole point.",
+    cta: { label: "I'll check the Feed later", tab: "feed", go: "Take me to the Feed" },
+  },
+  {
+    icon: "🏆",
+    title: "Compete on the leaderboard",
+    body: "The Study Timer tracks your sessions and ranks you against everyone on study hours this week. Quick Study gives you XP with combo multipliers. Set your username in Account so you appear on the board.",
+    cta: { label: "Next", tab: "study", go: "Show me the leaderboard" },
+  },
+  {
+    icon: "📝",
+    title: "Now feed it your notes",
+    body: "Upload lecture slides, summaries, or past papers in Materials. Everything — questions, Quick Study, your weak-topic tracking — runs off your own content. The more you upload, the sharper it gets.",
+    cta: { label: "Done", tab: "materials", go: "Upload my notes" },
+  },
+];
+
+export default function OnboardingTour({ onNavigate, onDone }) {
+  const [step, setStep] = useState(0);
+  const s = STEPS[step];
+  const last = step === STEPS.length - 1;
+
+  const finish = (tab) => {
+    try {
+      localStorage.setItem(FLAG, "1");
+    } catch {}
+    if (tab && onNavigate) onNavigate(tab);
+    onDone && onDone();
+  };
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Welcome tour"
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(26,34,56,0.55)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1000,
+        padding: 20,
+      }}
+    >
+      <div className="booklet" style={{ maxWidth: 460, width: "100%", marginBottom: 0 }}>
+        <div style={{ fontSize: 44, lineHeight: 1 }}>{s.icon}</div>
+        <h3 style={{ fontFamily: "var(--display)", fontSize: 26, margin: "10px 0 8px" }}>
+          {s.title}
+        </h3>
+        <p style={{ fontSize: 15, lineHeight: 1.6, color: "var(--ink-soft)", margin: 0 }}>
+          {s.body}
+        </p>
+
+        {/* progress dots */}
+        <div style={{ display: "flex", gap: 6, margin: "18px 0" }}>
+          {STEPS.map((_, i) => (
+            <span
+              key={i}
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 99,
+                background: i === step ? "var(--red)" : "var(--line)",
+              }}
+            />
+          ))}
+        </div>
+
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {s.cta && s.cta.go && (
+            <button className="btn red" onClick={() => finish(s.cta.tab)}>
+              {s.cta.go}
+            </button>
+          )}
+          {!last ? (
+            <button className="btn ghost" onClick={() => setStep(step + 1)}>
+              {step === 0 ? "Show me" : "Next"}
+            </button>
+          ) : (
+            <button className="btn" onClick={() => finish("materials")}>
+              Upload my notes
+            </button>
+          )}
+          <button
+            className="btn sm ghost"
+            style={{ marginLeft: "auto", border: "none", color: "var(--pencil)" }}
+            onClick={() => finish(null)}
+          >
+            Skip
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+=== src/Practice.jsx ===
+import { useState } from "react";
+import { generateQuestions, gradeAttempt, shareSet, exportPDF, explainConcept } from "./api.js";
+import { recordResult } from "./storage.js";
+import MathText from "./MathText.jsx";
+
+// ── Download a blob as a file ──────────────────────────────────────────────
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement("a");
+  a.href    = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Individual question card ───────────────────────────────────────────────
+export function QuestionCard({ q, index, onGraded, mode, isPro }) {
+  const [attempt,     setAttempt]     = useState("");
+  const [result,      setResult]      = useState(null);
+  const [showSol,     setShowSol]     = useState(false);
+  const [busy,        setBusy]        = useState(false);
+  const [error,       setError]       = useState("");
+  // Explain feature
+  const [explaining,  setExplaining]  = useState(false);
+  const [explanation, setExplanation] = useState(null);
+  const [explainErr,  setExplainErr]  = useState("");
+
+  const mark = async () => {
+    if (!attempt.trim() || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const r = await gradeAttempt({
+        question: q.text,
+        solution: q.solution,
+        marks:    q.marks,
+        attempt:  attempt.trim(),
+      });
+      setResult(r);
+      setShowSol(true);
+      onGraded && onGraded(q, r);
+    } catch (e) {
+      setError(e.message);
+    }
+    setBusy(false);
+  };
+
+  const explain = async () => {
+    if (explaining) return;
+    setExplaining(true);
+    setExplainErr("");
+    try {
+      const { explanation: text } = await explainConcept({
+        question: q.text,
+        attempt:  attempt.trim(),
+        solution: q.solution,
+        topic:    q.topic,
+      });
+      setExplanation(text);
+    } catch (e) {
+      setExplainErr(e.message);
+    }
+    setExplaining(false);
+  };
+
+  const tone = result?.verdict === "correct" ? "green"
+             : result?.verdict === "partial"  ? "amber" : "";
+
+  return (
+    <div className="booklet">
+      <span className="qtopic">{q.topic}</span>
+      <div className="qhead">
+        <span className="qnum">Question {index + 1}</span>
+        <span className="qmarks">({q.marks} marks)</span>
+      </div>
+      <MathText block className="qtext">{q.text}</MathText>
+
+      {!result && (
+        <>
+          <label className="eyebrow" htmlFor={`a-${mode}-${index}`} style={{ marginTop: 14 }}>
+            Your working
+          </label>
+          <textarea
+            id={`a-${mode}-${index}`}
+            rows={5}
+            value={attempt}
+            onChange={(e) => setAttempt(e.target.value)}
+            placeholder="Show your steps — method marks are real. Plain text math is fine (x^2, sqrt, etc.)"
+          />
+          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+            <button className="btn red" onClick={mark} disabled={busy || !attempt.trim()}>
+              {busy ? "Marking…" : "Mark my attempt"}
+            </button>
+            <button className="btn ghost" onClick={() => setShowSol(!showSol)}>
+              {showSol ? "Hide solution" : "Show solution"}
+            </button>
+          </div>
+          {error && <p className="error-text">{error}</p>}
+        </>
+      )}
+
+      {result && (
+        <div style={{ marginTop: 16 }}>
+          <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+            <span className={`stamp ${tone}`}>
+              {result.score}/{result.maxMarks}
+            </span>
+            <div className={`marking ${tone}`} style={{ flex: 1, minWidth: 240, marginTop: 0 }}>
+              <span className="who">
+                Examiner's note{result.errorType !== "none" ? ` · ${result.errorType} error` : ""}
+              </span>
+              {result.feedback}
+            </div>
+          </div>
+
+          {/* Explain button — shown after wrong or partial answers */}
+          {result.verdict !== "correct" && !explanation && (
+            <div style={{ marginTop: 14 }}>
+              {isPro ? (
+                <button
+                  className="btn ghost sm"
+                  style={{ borderColor: "var(--red)", color: "var(--red)" }}
+                  onClick={explain}
+                  disabled={explaining}
+                >
+                  {explaining
+                    ? <><span className="spin">◌</span> Getting deep explanation…</>
+                    : "Explain this concept →"}
+                </button>
+              ) : (
+                <button
+                  className="btn ghost sm"
+                  style={{ opacity: 0.7 }}
+                  onClick={() => window.dispatchEvent(new CustomEvent("cramforge:limit", {
+                    detail: { message: "The Explain feature is Pro-only — upgrade for deep concept explanations after wrong answers." }
+                  }))}
+                >
+                  🔒 Explain this concept (Pro)
+                </button>
+              )}
+              {explainErr && <p className="error-text" style={{ marginTop: 6 }}>{explainErr}</p>}
+            </div>
+          )}
+
+          {/* Explanation panel */}
+          {explanation && (
+            <div className="solution" style={{ marginTop: 14, background: "var(--red-soft)", borderLeft: "3px solid var(--red)" }}>
+              <span className="label" style={{ color: "var(--red)" }}>Deep explanation</span>
+              {explanation}
+            </div>
+          )}
+        </div>
+      )}
+
+      {showSol && (
+        <div className="solution">
+          <span className="label">Model solution</span>
+          <MathText block>{q.solution}</MathText>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Practice mode ─────────────────────────────────────────────────────────
+export default function Practice({ unit, updateUnit, topics, notes, weak, isPro }) {
+  const [selected,   setSelected]   = useState([]);
+  const [difficulty, setDifficulty] = useState("medium");
+  const [count,      setCount]      = useState(3);
+  const [questions,  setQuestions]  = useState([]);
+  const [busy,       setBusy]       = useState(false);
+  const [error,      setError]      = useState("");
+  const [shareUrl,   setShareUrl]   = useState("");
+  const [sharing,    setSharing]    = useState(false);
+  const [exporting,  setExporting]  = useState(false);
+  const [exportMsg,  setExportMsg]  = useState("");
+
+  const toggle = (t) =>
+    setSelected((s) => (s.includes(t) ? s.filter((x) => x !== t) : [...s, t]));
+
+  const share = async () => {
+    setSharing(true);
+    try {
+      const { url } = await shareSet({ unitName: unit.name, questions, subjectType: unit.subjectType });
+      setShareUrl(url);
+      navigator.clipboard?.writeText(url).catch(() => {});
+    } catch (e) {
+      setError("Couldn't create share link — " + e.message);
+    }
+    setSharing(false);
+  };
+
+  const handleExportPDF = async () => {
+    setExporting(true);
+    setExportMsg("");
+    try {
+      const blob = await exportPDF({
+        questions,
+        unitName:    unit.name,
+        subjectType: unit.subjectType || "stem",
+      });
+      const safeName = unit.name.replace(/[^a-zA-Z0-9]/g, "-").toLowerCase();
+      downloadBlob(blob, `cramforge-${safeName}.pdf`);
+      setExportMsg(isPro ? "" : "Demo PDF downloaded — upgrade to Pro for unlimited exports.");
+    } catch (e) {
+      setExportMsg(e.message);
+    }
+    setExporting(false);
+  };
+
+  const generate = async () => {
+    setBusy(true);
+    setError("");
+    setQuestions([]);
+    setShareUrl("");
+    setExportMsg("");
+    try {
+      const out = await generateQuestions({
+        unitName:    unit.name,
+        notes,
+        topics:      selected.length ? selected : topics,
+        difficulty,
+        count,
+        weakTopics:  weak,
+        subjectType: unit.subjectType || "stem",
+      });
+      setQuestions(out.questions || []);
+    } catch (e) {
+      setError(e.message);
+    }
+    setBusy(false);
+  };
+
+  const onGraded = (q, r) => {
+    updateUnit(
+      recordResult(unit, {
+        topic:     q.topic,
+        score:     r.score,
+        max:       r.maxMarks,
+        errorType: r.errorType,
+        mode:      "practice",
+      })
+    );
+  };
+
+  if (!notes) {
+    return (
+      <div className="notice">
+        Upload some course materials first — head to the <strong>Materials</strong> tab. Questions
+        are generated from your actual content, not generic textbook problems.
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <h2 className="h-display">Practice — {unit.name}</h2>
+
+      <div className="booklet">
+        <div className="eyebrow" style={{ marginBottom: 10 }}>
+          Topics {selected.length ? `(${selected.length} selected)` : "(all)"}
+          {weak.length > 0 && (
+            <span style={{ color: "var(--red)" }}> · red outline = your weak spots</span>
+          )}
+        </div>
+        <div className="chips" style={{ marginBottom: 18 }}>
+          {topics.map((t) => (
+            <button
+              key={t}
+              className={
+                "chip" + (selected.includes(t) ? " on" : "") + (weak.includes(t) ? " weak" : "")
+              }
+              onClick={() => toggle(t)}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+
+        <div className="row">
+          <div>
+            <label className="eyebrow" htmlFor="diff">Difficulty</label>
+            <select id="diff" value={difficulty} onChange={(e) => setDifficulty(e.target.value)}>
+              <option value="easy">Easy — single concept</option>
+              <option value="medium">Medium — multi-step</option>
+              <option value="hard">Hard — exam finisher</option>
+            </select>
+          </div>
+          <div>
+            <label className="eyebrow" htmlFor="count">Questions</label>
+            <select id="count" value={count} onChange={(e) => setCount(Number(e.target.value))}>
+              {[1, 2, 3, 4, 5].map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ flex: "0 0 auto" }}>
+            <button className="btn" onClick={generate} disabled={busy}>
+              {busy ? "Writing questions…" : "Generate questions"}
+            </button>
+          </div>
+        </div>
+        {error && <p className="error-text">{error}</p>}
+      </div>
+
+      {busy && (
+        <p className="mono small">
+          <span className="spin">◌</span> The examiner is writing… ~30 seconds
+        </p>
+      )}
+
+      {questions.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+          {/* Share link */}
+          {shareUrl ? (
+            <>
+              <input
+                type="text"
+                readOnly
+                value={shareUrl}
+                onClick={(e) => e.target.select()}
+                style={{ fontSize: 12, fontFamily: "var(--mono)", flex: 1, minWidth: 200, color: "var(--ink-soft)" }}
+              />
+              <span className="mono small" style={{ color: "var(--green)" }}>✓ Link copied</span>
+            </>
+          ) : (
+            <button className="btn ghost sm" onClick={share} disabled={sharing}>
+              {sharing ? "Creating link…" : "Share this set"}
+            </button>
+          )}
+
+          {/* PDF export */}
+          <button
+            className="btn ghost sm"
+            style={{ borderColor: "var(--ink)", display: "flex", alignItems: "center", gap: 6 }}
+            onClick={handleExportPDF}
+            disabled={exporting}
+            title={isPro ? "Export as a clean exam paper PDF" : "1 free demo export — Pro for unlimited"}
+          >
+            {exporting
+              ? <><span className="spin">◌</span> Generating PDF…</>
+              : <>📄 Export PDF{isPro ? "" : " (1 free)"}</>}
+          </button>
+        </div>
+      )}
+
+      {exportMsg && (
+        <p className="small" style={{ color: exportMsg.includes("Demo") ? "var(--amber)" : "var(--red)", marginBottom: 12 }}>
+          {exportMsg}
+        </p>
+      )}
+
+      {questions.map((q, i) => (
+        <QuestionCard key={i} q={q} index={i} onGraded={onGraded} mode="practice" isPro={isPro} />
+      ))}
+    </>
+  );
+}
+
+=== src/Progress.jsx ===
+export default function Progress({ unit, weak }) {
+  const stats = unit.stats || {};
+  const rows = Object.entries(stats).sort(
+    (a, b) => a[1].scored / Math.max(a[1].max, 1) - b[1].scored / Math.max(b[1].max, 1)
+  );
+  const history = unit.history || [];
+  const totalAttempts = history.length;
+  const totalScored = history.reduce((a, h) => a + h.score, 0);
+  const totalMax = history.reduce((a, h) => a + h.max, 0);
+
+  const errorTotals = { concept: 0, algebra: 0, arithmetic: 0, incomplete: 0 };
+  Object.values(stats).forEach((s) =>
+    Object.entries(s.errors || {}).forEach(([k, v]) => (errorTotals[k] += v))
+  );
+  const dominantError = Object.entries(errorTotals).sort((a, b) => b[1] - a[1])[0];
+
+  if (!rows.length) {
+    return (
+      <>
+        <h2 className="h-display">Progress — {unit.name}</h2>
+        <div className="notice">
+          Nothing marked yet. Attempt some questions in <strong>Practice</strong> or sit a paper in{" "}
+          <strong>Exam mode</strong> — every marked attempt lands here, broken down by topic and
+          error type, so the weak spots can't hide.
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <h2 className="h-display">Progress — {unit.name}</h2>
+
+      <div className="row" style={{ marginBottom: 22 }}>
+        <div className="booklet" style={{ marginBottom: 0 }}>
+          <div className="eyebrow">Marked attempts</div>
+          <div className="mono" style={{ fontSize: 26, fontWeight: 700 }}>{totalAttempts}</div>
+        </div>
+        <div className="booklet" style={{ marginBottom: 0 }}>
+          <div className="eyebrow">Overall accuracy</div>
+          <div className="mono" style={{ fontSize: 26, fontWeight: 700 }}>
+            {totalMax ? Math.round((totalScored / totalMax) * 100) : 0}%
+          </div>
+        </div>
+        <div className="booklet" style={{ marginBottom: 0 }}>
+          <div className="eyebrow">Most common error</div>
+          <div className="mono" style={{ fontSize: 26, fontWeight: 700, color: dominantError[1] ? "var(--red)" : "var(--ink)" }}>
+            {dominantError[1] ? dominantError[0] : "none"}
+          </div>
+        </div>
+      </div>
+
+      {weak.length > 0 && (
+        <div className="marking" style={{ marginBottom: 22 }}>
+          <span className="who">Flagged for revision</span>
+          {weak.join(" · ")} — under 60% accuracy. Practice mode will automatically bias new
+          questions toward these.
+        </div>
+      )}
+
+      <table>
+        <thead>
+          <tr>
+            <th>Topic</th>
+            <th>Attempts</th>
+            <th>Marks</th>
+            <th>Accuracy</th>
+            <th>Errors (con/alg/ari/inc)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(([topic, s]) => {
+            const acc = s.max ? s.scored / s.max : 0;
+            const color = acc >= 0.7 ? "var(--green)" : acc >= 0.5 ? "var(--amber)" : "var(--red)";
+            return (
+              <tr key={topic}>
+                <td style={{ fontWeight: 500 }}>
+                  {topic}
+                  {weak.includes(topic) && (
+                    <span className="mono" style={{ color: "var(--red)", fontSize: 11 }}> ⚑</span>
+                  )}
+                </td>
+                <td className="mono">{s.attempts}</td>
+                <td className="mono">
+                  {s.scored}/{s.max}
+                </td>
+                <td>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div className="acc-bar" style={{ flex: 1 }}>
+                      <div className="acc-fill" style={{ width: `${acc * 100}%`, background: color }} />
+                    </div>
+                    <span className="mono small">{Math.round(acc * 100)}%</span>
+                  </div>
+                </td>
+                <td className="mono small muted">
+                  {s.errors.concept}/{s.errors.algebra}/{s.errors.arithmetic}/{s.errors.incomplete}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+
+      <p className="small muted" style={{ marginTop: 14 }}>
+        Error key: <strong>con</strong>cept = wrong method · <strong>alg</strong>ebra = manipulation
+        slip · <strong>ari</strong>thmetic = calculation slip · <strong>inc</strong>omplete = right
+        path, didn't finish.
+      </p>
+    </>
+  );
+}
+
+=== src/QuestionBank.jsx ===
+import { useState, useEffect } from "react";
+import { loadBank, getSharedSet } from "./api.js";
+
+const SUBJECT_FILTERS = [
+  { value: "",            label: "All subjects" },
+  { value: "stem",        label: "STEM / Maths" },
+  { value: "essay",       label: "Humanities" },
+  { value: "law",         label: "Law" },
+  { value: "accounting",  label: "Accounting" },
+  { value: "medicine",    label: "Medicine" },
+];
+
+const SUBJECT_EMOJI = {
+  stem:       "🔢",
+  essay:      "📝",
+  law:        "⚖️",
+  accounting: "💼",
+  medicine:   "🩺",
+};
+
+function SetCard({ set, onOpen, isPro, setIndex }) {
+  const freeQuota = 3; // free users can browse 3 sets per session (tracked in localStorage)
+  const tried  = JSON.parse(localStorage.getItem("cf_bank_tried") || "[]");
+  const locked = !isPro && set.featured && !tried.includes(set.id) && tried.length >= freeQuota;
+
+  const handleClick = () => {
+    if (locked) {
+      window.dispatchEvent(new CustomEvent("cramforge:limit", {
+        detail: { message: "Upgrade to Pro to access all featured question sets in the bank — free users can open 3 per session." }
+      }));
+      return;
+    }
+    // Track opened sets for free users
+    if (!isPro && !tried.includes(set.id)) {
+      const next = [...tried, set.id].slice(-20);
+      localStorage.setItem("cf_bank_tried", JSON.stringify(next));
+    }
+    onOpen(set.id);
+  };
+
+  return (
+    <div
+      className="booklet"
+      style={{
+        cursor: "pointer", opacity: locked ? 0.6 : 1,
+        transition: "box-shadow 0.15s",
+        position: "relative",
+      }}
+      onClick={handleClick}
+      onMouseEnter={(e) => e.currentTarget.style.boxShadow = "0 4px 16px rgba(26,34,56,0.12)"}
+      onMouseLeave={(e) => e.currentTarget.style.boxShadow = ""}
+    >
+      {set.featured && (
+        <span style={{
+          position: "absolute", top: 12, right: 12,
+          background: "var(--highlight)", color: "var(--ink)",
+          fontFamily: "var(--mono)", fontSize: 10, fontWeight: 700,
+          letterSpacing: "0.1em", padding: "3px 8px", borderRadius: 4
+        }}>
+          FEATURED
+        </span>
+      )}
+
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+        <span style={{ fontSize: 22 }}>{SUBJECT_EMOJI[set.subject_type] || "📚"}</span>
+        <span className="eyebrow">{set.subject_type || "general"}</span>
+        {locked && <span className="eyebrow" style={{ color: "var(--red)", marginLeft: "auto", paddingRight: 32 }}>PRO</span>}
+      </div>
+
+      <div style={{ fontFamily: "var(--display)", fontSize: 17, fontWeight: 600, marginBottom: 6 }}>
+        {set.unit_name}
+      </div>
+
+      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        <span className="small muted">{set.question_count || "?"} questions</span>
+        <span className="small muted">·</span>
+        <span className="small muted">{set.view_count || 0} views</span>
+        <span className="small muted">·</span>
+        <span className="small muted">
+          {new Date(set.created_at).toLocaleDateString("en-AU", { month: "short", day: "numeric" })}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// Inline viewer for a set opened from the bank
+function SetViewer({ setId, onBack }) {
+  const [questions, setQuestions] = useState(null);
+  const [meta,      setMeta]      = useState(null);
+  const [loading,   setLoading]   = useState(true);
+  const [error,     setError]     = useState("");
+
+  useEffect(() => {
+    getSharedSet(setId).then((d) => {
+      if (d?.questions) {
+        setQuestions(d.questions);
+        setMeta({ unitName: d.unitName, subjectType: d.subjectType });
+      } else {
+        setError("Could not load this question set.");
+      }
+    }).catch((e) => setError(e.message)).finally(() => setLoading(false));
+  }, [setId]);
+
+  if (loading) return <div className="notice"><span className="spin">◌</span> Loading…</div>;
+  if (error)   return <div className="notice">{error} <button className="btn ghost sm" onClick={onBack}>Back</button></div>;
+
+  return (
+    <>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+        <button className="btn ghost sm" onClick={onBack}>← Back to bank</button>
+        <h2 className="h-display" style={{ margin: 0 }}>{meta?.unitName}</h2>
+      </div>
+      {(questions || []).map((q, i) => (
+        <div className="booklet" key={i}>
+          <span className="qtopic">{q.topic}</span>
+          <div className="qhead">
+            <span className="qnum">Question {i + 1}</span>
+            <span className="qmarks">({q.marks} marks)</span>
+          </div>
+          <p className="qtext">{q.text}</p>
+          <details>
+            <summary className="btn ghost sm" style={{ display: "inline-flex", cursor: "pointer" }}>
+              Show worked solution
+            </summary>
+            <div className="solution">
+              <span className="label">Model solution</span>
+              {q.solution}
+            </div>
+          </details>
+        </div>
+      ))}
+    </>
+  );
+}
+
+export default function QuestionBank({ isPro }) {
+  const [subject,  setSubject]  = useState("");
+  const [featured, setFeatured] = useState(false);
+  const [sets,     setSets]     = useState([]);
+  const [total,    setTotal]    = useState(0);
+  const [page,     setPage]     = useState(0);
+  const [loading,  setLoading]  = useState(false);
+  const [openId,   setOpenId]   = useState(null);
+
+  const perPage = 12;
+
+  useEffect(() => {
+    setLoading(true);
+    loadBank({ subject: subject || undefined, featured: featured || undefined, page })
+      .then((d) => {
+        setSets(d.sets || []);
+        setTotal(d.total || 0);
+      })
+      .finally(() => setLoading(false));
+  }, [subject, featured, page]);
+
+  if (openId) {
+    return <SetViewer setId={openId} onBack={() => setOpenId(null)} />;
+  }
+
+  return (
+    <>
+      <h2 className="h-display">Question Bank</h2>
+      <p className="small muted" style={{ marginBottom: 20 }}>
+        Browse question sets shared by the CramForge community. Use them to practise without uploading notes, or share your own generated sets.
+        {!isPro && " Free users can open 3 sets per session — Pro unlocks all."}
+      </p>
+
+      {/* Filters */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
+        <div className="chips">
+          {SUBJECT_FILTERS.map(({ value, label }) => (
+            <button
+              key={value}
+              className={"chip" + (subject === value ? " on" : "")}
+              onClick={() => { setSubject(value); setPage(0); }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto", cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            checked={featured}
+            onChange={(e) => { setFeatured(e.target.checked); setPage(0); }}
+          />
+          <span className="small">Featured only</span>
+        </label>
+      </div>
+
+      {/* Grid */}
+      {loading ? (
+        <div className="notice"><span className="spin">◌</span> Loading sets…</div>
+      ) : sets.length === 0 ? (
+        <div className="notice">
+          No question sets found{subject ? ` for ${subject}` : ""}{featured ? " (featured)" : ""}.
+          <br />Generate some questions in Practice mode and share them to grow the bank!
+        </div>
+      ) : (
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+          gap: 16, marginBottom: 24
+        }}>
+          {sets.map((set, i) => (
+            <SetCard key={set.id} set={set} onOpen={setOpenId} isPro={isPro} setIndex={i} />
+          ))}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {total > perPage && (
+        <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+          <button className="btn ghost sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
+            ← Prev
+          </button>
+          <span className="small muted" style={{ lineHeight: "32px" }}>
+            Page {page + 1} of {Math.ceil(total / perPage)}
+          </span>
+          <button className="btn ghost sm" disabled={(page + 1) * perPage >= total} onClick={() => setPage(page + 1)}>
+            Next →
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
+=== src/QuickStudy.jsx ===
+// QuickStudy.jsx — Short-form "5 quick questions" mode
+// Full-screen dark UI inspired by TikTok/Reels: tap to answer, instant feedback,
+// combo multiplier, XP floats, share your score.
+
+import { useState, useEffect, useRef } from "react";
+import { quickGenerate, saveStudySession } from "./api.js";
+
+// ── XP maths ──────────────────────────────────────────────────────────────
+const BASE_XP = 10;
+function calcXP(comboBeforeThisAnswer) {
+  if (comboBeforeThisAnswer >= 4) return Math.round(BASE_XP * 2.5);
+  if (comboBeforeThisAnswer >= 3) return Math.round(BASE_XP * 2.0);
+  if (comboBeforeThisAnswer >= 2) return Math.round(BASE_XP * 1.5);
+  return BASE_XP;
+}
+
+// ── Share score ────────────────────────────────────────────────────────────
+function doShare({ score, total, xp, bestCombo, unitName }) {
+  const emoji = score === total ? "🔥" : score >= total * 0.6 ? "⚡" : "📚";
+  const text =
+    `${emoji} ${score}/${total} on CramForge Quick Study` +
+    (unitName && unitName !== "Mixed units" ? ` — ${unitName}` : "") +
+    `\n⚡ ${xp} XP` +
+    (bestCombo >= 2 ? ` · 🔥 ${bestCombo} combo` : "") +
+    `\ncramforge.app`;
+
+  if (navigator.share) {
+    navigator.share({ text, url: "https://cramforge.app" }).catch(() => {});
+  } else {
+    navigator.clipboard?.writeText(text).catch(() => {});
+  }
+}
+
+// ── Floating XP animation ──────────────────────────────────────────────────
+function XPFloat({ amount, onDone }) {
+  useEffect(() => {
+    const t = setTimeout(onDone, 850);
+    return () => clearTimeout(t);
+  }, [onDone]);
+  return <div className="qs-xp-float">+{amount}⚡</div>;
+}
+
+// ── Progress pips ──────────────────────────────────────────────────────────
+function ProgressPips({ current, total }) {
+  return (
+    <div className="qs-pips">
+      {Array.from({ length: total }, (_, i) => (
+        <div
+          key={i}
+          className={`qs-pip ${i < current ? "done" : i === current ? "active" : ""}`}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ── Single answer option ──────────────────────────────────────────────────
+function Option({ letter, text, state, onClick }) {
+  return (
+    <button
+      className={`qs-option qs-option--${state}`}
+      onClick={state === "idle" ? onClick : undefined}
+      disabled={state !== "idle"}
+      aria-pressed={state === "correct" || state === "wrong"}
+    >
+      <span className="qs-option-letter">{letter}</span>
+      <span className="qs-option-text">{text}</span>
+      {state === "correct" && <span className="qs-option-tick">✓</span>}
+      {state === "wrong"   && <span className="qs-option-tick">✗</span>}
+    </button>
+  );
+}
+
+// ── Question card ─────────────────────────────────────────────────────────
+function QuestionCard({ q, qIndex, total, combo, onAnswer }) {
+  const [chosen,   setChosen]   = useState(null);
+  const [revealed, setRevealed] = useState(false);
+  const letters = ["A", "B", "C", "D"];
+
+  const pick = (idx) => {
+    if (chosen !== null) return;
+    setChosen(idx);
+    const correct = idx === q.correctIndex;
+    // Brief pause then show explanation + correct answer
+    setTimeout(() => setRevealed(true), 80);
+    onAnswer(idx, correct);
+  };
+
+  const optState = (idx) => {
+    if (chosen === null) return "idle";
+    if (idx === q.correctIndex) return "correct";
+    if (idx === chosen)         return "wrong";
+    return "dimmed";
+  };
+
+  return (
+    <div className="qs-card" key={qIndex}>
+      {/* HUD row */}
+      <div className="qs-hud">
+        <ProgressPips current={qIndex} total={total} />
+        {combo >= 2 && (
+          <div className="qs-combo">🔥{combo}</div>
+        )}
+      </div>
+
+      {/* Topic tag */}
+      <div className="qs-topic">{q.topic}</div>
+
+      {/* Question text */}
+      <div className="qs-question-wrap">
+        <p className="qs-question-text">{q.text}</p>
+      </div>
+
+      {/* Explanation (revealed after answering) */}
+      {revealed && (
+        <div className={`qs-explanation ${chosen === q.correctIndex ? "qs-explanation--correct" : "qs-explanation--wrong"}`}>
+          {chosen === q.correctIndex
+            ? `✓ ${q.explanation}`
+            : `✗ The answer was ${letters[q.correctIndex]}. ${q.explanation}`}
+        </div>
+      )}
+
+      {/* Options grid */}
+      <div className="qs-options">
+        {q.options.map((opt, i) => (
+          <Option
+            key={i}
+            letter={letters[i]}
+            text={opt}
+            state={optState(i)}
+            onClick={() => pick(i)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Unit selector screen ──────────────────────────────────────────────────
+function SelectScreen({ units, onSelect, loading, error }) {
+  const list = Object.values(units);
+  return (
+    <div className="qs-select">
+      <div className="qs-select-hero">
+        <p className="qs-select-eyebrow">Quick Study</p>
+        <h1 className="qs-select-headline">
+          5 questions.<br />Right now.
+        </h1>
+        <p className="qs-select-sub">
+          Pick a unit and go. Results in under 2 minutes.
+        </p>
+      </div>
+
+      <div className="qs-unit-list">
+        {list.map((u) => (
+          <button
+            key={u.id}
+            className="qs-unit-btn"
+            onClick={() => !loading && onSelect(u.id)}
+            disabled={loading}
+          >
+            <span className="qs-unit-name">{u.name}</span>
+            <span className="qs-unit-arrow">→</span>
+          </button>
+        ))}
+        {list.length > 1 && (
+          <button
+            className="qs-unit-btn qs-unit-btn--all"
+            onClick={() => !loading && onSelect("all")}
+            disabled={loading}
+          >
+            <span className="qs-unit-name">✦ Mix all units</span>
+            <span className="qs-unit-arrow">→</span>
+          </button>
+        )}
+      </div>
+
+      {loading && (
+        <p className="qs-loading-msg"><span className="spin">◌</span> Generating questions…</p>
+      )}
+      {error && (
+        <p className="qs-error">{error}</p>
+      )}
+
+      {/* Social proof nudge */}
+      <div className="qs-nudge">
+        <span>⚡</span>
+        <span>Answer 5 correct in a row for a 2.5× XP bonus</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Results screen ────────────────────────────────────────────────────────
+function ResultsScreen({ score, total, xp, bestCombo, unitName, onAgain, onBack }) {
+  const [shared, setShared] = useState(false);
+  const pct = total ? Math.round((score / total) * 100) : 0;
+
+  const grade =
+    pct === 100 ? { msg: "Perfect! 🔥", color: "#2dd4a0" }
+    : pct >= 80  ? { msg: "Excellent",    color: "#2dd4a0" }
+    : pct >= 60  ? { msg: "Good work",    color: "#ffe45c" }
+    : pct >= 40  ? { msg: "Keep going",   color: "#ff9f43" }
+    :               { msg: "Try again",   color: "#ff4d6a" };
+
+  const handleShare = () => {
+    doShare({ score, total, xp, bestCombo, unitName });
+    setShared(true);
+    setTimeout(() => setShared(false), 2200);
+  };
+
+  return (
+    <div className="qs-results">
+      {/* Score hero */}
+      <div className="qs-results-hero">
+        <p className="qs-results-unit">{unitName}</p>
+        <div className="qs-results-score" style={{ color: grade.color }}>
+          {score}<span className="qs-results-denom">/{total}</span>
+        </div>
+        <p className="qs-results-grade" style={{ color: grade.color }}>{grade.msg}</p>
+
+        {/* Stats */}
+        <div className="qs-results-stats">
+          <div className="qs-results-stat">
+            <span className="qs-results-stat-val" style={{ color: "#ffe45c" }}>⚡{xp}</span>
+            <span className="qs-results-stat-label">XP earned</span>
+          </div>
+          {bestCombo >= 2 && (
+            <div className="qs-results-stat">
+              <span className="qs-results-stat-val" style={{ color: "#ff9f43" }}>🔥{bestCombo}</span>
+              <span className="qs-results-stat-label">best combo</span>
+            </div>
+          )}
+          <div className="qs-results-stat">
+            <span className="qs-results-stat-val">{pct}%</span>
+            <span className="qs-results-stat-label">accuracy</span>
+          </div>
+        </div>
+      </div>
+
+      {/* CTAs */}
+      <div className="qs-cta-stack">
+        <button className="qs-cta qs-cta--primary" onClick={onAgain}>
+          5 more →
+        </button>
+        <button
+          className="qs-cta qs-cta--share"
+          onClick={handleShare}
+        >
+          {shared
+            ? (navigator.share ? "✓ Shared!" : "✓ Copied!")
+            : "Share score"}
+        </button>
+        <button className="qs-cta qs-cta--ghost" onClick={onBack}>
+          Back to CramForge
+        </button>
+      </div>
+
+      {/* Deepen nudge */}
+      <p className="qs-deepen-nudge">
+        Want harder questions?<br />
+        Try <strong>Exam mode</strong> for a full timed paper.
+      </p>
+    </div>
+  );
+}
+
+// ── Main QuickStudy component ─────────────────────────────────────────────
+export default function QuickStudy({ units, onBack }) {
+  const [phase,     setPhase]     = useState("select");
+  const [loading,   setLoading]   = useState(false);
+  const [error,     setError]     = useState("");
+  const [questions, setQuestions] = useState([]);
+  const [current,   setCurrent]   = useState(0);
+  const [answers,   setAnswers]   = useState([]);   // [{chosen, correct}]
+  const [xp,        setXp]        = useState(0);
+  const [combo,     setCombo]     = useState(0);
+  const [bestCombo, setBestCombo] = useState(0);
+  const [xpPop,     setXpPop]     = useState(null); // amount to show, or null
+  const [unitName,  setUnitName]  = useState("");
+  const [startedAt, setStartedAt] = useState(null);
+
+  // Stable refs so async callbacks always see latest values
+  const comboRef    = useRef(0);
+  const currentRef  = useRef(0);
+  const unitIdRef   = useRef(null);
+
+  const unitList = Object.values(units || {});
+
+  // ── Gather notes for a unit selection ──────────────────────────────────
+  const buildPayload = (unitId) => {
+    if (unitId === "all") {
+      const notes  = unitList.map((u) =>
+        (u.materials || []).map((m) => m.content || "").join("\n")
+      ).join("\n\n").slice(0, 5000);
+      const topics = [...new Set(unitList.flatMap((u) => u.topics || []))].slice(0, 10);
+      return { notes, unitName: "Mixed units", topics };
+    }
+    const u      = units[unitId];
+    const notes  = (u.materials || []).map((m) => m.content || "").join("\n").slice(0, 5000);
+    const topics = (u.topics || []).slice(0, 10);
+    return { notes, unitName: u.name, topics };
+  };
+
+  // ── Start a session ──────────────────────────────────────────────────────
+  const startSession = async (unitId) => {
+    setLoading(true);
+    setError("");
+    unitIdRef.current = unitId;
+
+    const { notes, unitName: name, topics } = buildPayload(unitId);
+    setUnitName(name);
+
+    try {
+      const data = await quickGenerate({ notes, unitName: name, topics });
+      setQuestions(data.questions);
+      setAnswers([]);
+      setCurrent(0);
+      currentRef.current = 0;
+      setXp(0);
+      setCombo(0);
+      comboRef.current = 0;
+      setBestCombo(0);
+      setStartedAt(new Date().toISOString());
+      setPhase("playing");
+    } catch (e) {
+      setError(e.message);
+    }
+    setLoading(false);
+  };
+
+  // ── Handle an answer ──────────────────────────────────────────────────────
+  const handleAnswer = (chosenIdx, correct) => {
+    const prevCombo  = comboRef.current;
+    const newCombo   = correct ? prevCombo + 1 : 0;
+    comboRef.current = newCombo;
+
+    const xpEarned = correct ? calcXP(prevCombo) : 0;
+
+    setAnswers((prev) => [...prev, { chosen: chosenIdx, correct }]);
+    setCombo(newCombo);
+    setBestCombo((bc) => Math.max(bc, newCombo));
+    if (correct) {
+      setXp((x) => x + xpEarned);
+      setXpPop(xpEarned);
+    }
+
+    // Auto-advance after 1.7 s
+    setTimeout(() => {
+      const next = currentRef.current + 1;
+      if (next >= questions.length) {
+        setPhase("results");
+        // Save session stats
+        const durationMs = startedAt ? Date.now() - new Date(startedAt).getTime() : 0;
+        const durationSec = Math.max(30, Math.round(durationMs / 1000));
+        saveStudySession({
+          unitName:    unitName,
+          durationSeconds: durationSec,
+          startedAt:   startedAt || new Date().toISOString(),
+          endedAt:     new Date().toISOString(),
+          mode:        "quick",
+          xpEarned:    xp + xpEarned,
+          correct:     answers.filter((a) => a.correct).length + (correct ? 1 : 0),
+          total:       questions.length,
+        }).catch(() => {});
+      } else {
+        currentRef.current = next;
+        setCurrent(next);
+      }
+    }, 1700);
+  };
+
+  // ── No units → prompt to add one ──────────────────────────────────────
+  if (!unitList.length) {
+    return (
+      <div className="qs-shell">
+        <div className="qs-header">
+          <button className="qs-back" onClick={onBack}>←</button>
+          <span className="qs-brand">Cram<span>Forge</span></span>
+          <span />
+        </div>
+        <div className="qs-select" style={{ textAlign: "center" }}>
+          <p style={{ fontSize: 40, marginBottom: 12 }}>📚</p>
+          <p style={{ color: "rgba(255,255,255,0.55)", marginBottom: 20 }}>
+            Add a unit and upload some notes first — Quick Study reads from your materials.
+          </p>
+          <button className="qs-cta qs-cta--ghost" onClick={onBack}>
+            ← Go back and add a unit
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────
+  return (
+    <div className="qs-shell">
+      {/* Persistent header */}
+      <div className="qs-header">
+        <button className="qs-back" onClick={onBack} title="Back">←</button>
+        <span className="qs-brand">Cram<span>Forge</span></span>
+        {xp > 0
+          ? <span className="qs-xp-badge">⚡{xp}</span>
+          : <span />
+        }
+      </div>
+
+      {/* Phase: select unit */}
+      {phase === "select" && (
+        <SelectScreen
+          units={units}
+          onSelect={startSession}
+          loading={loading}
+          error={error}
+        />
+      )}
+
+      {/* Phase: playing */}
+      {phase === "playing" && questions.length > 0 && (
+        <div className="qs-play">
+          <QuestionCard
+            key={current}
+            q={questions[current]}
+            qIndex={current}
+            total={questions.length}
+            combo={combo}
+            onAnswer={handleAnswer}
+          />
+
+          {/* Floating XP */}
+          {xpPop !== null && (
+            <XPFloat amount={xpPop} onDone={() => setXpPop(null)} />
+          )}
+        </div>
+      )}
+
+      {/* Phase: results */}
+      {phase === "results" && (
+        <ResultsScreen
+          score={answers.filter((a) => a.correct).length}
+          total={questions.length}
+          xp={xp}
+          bestCombo={bestCombo}
+          unitName={unitName}
+          onAgain={() => startSession(unitIdRef.current)}
+          onBack={onBack}
+        />
+      )}
+    </div>
+  );
+}
+
+=== src/SharedView.jsx ===
+import { useState, useEffect } from "react";
+import { getSharedSet } from "./api.js";
+
+function SharedQuestion({ q, index }) {
+  const [showSolution, setShowSolution] = useState(false);
+  return (
+    <div className="booklet">
+      <span className="qtopic">{q.topic}</span>
+      <div className="qhead">
+        <span className="qnum">Question {index + 1}</span>
+        <span className="qmarks">({q.marks} marks)</span>
+      </div>
+      <p className="qtext">{q.text}</p>
+      <button
+        className="btn ghost sm"
+        style={{ marginTop: 12 }}
+        onClick={() => setShowSolution(!showSolution)}
+      >
+        {showSolution ? "Hide solution" : "Show worked solution"}
+      </button>
+      {showSolution && (
+        <div className="solution">
+          <span className="label">Model solution</span>
+          {q.solution}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function SharedView({ shareId, onSignup }) {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    getSharedSet(shareId)
+      .then((d) => {
+        if (d?.error) setError(d.error);
+        else setData(d);
+      })
+      .catch(() => setError("Couldn't load this question set."));
+  }, [shareId]);
+
+  if (error) {
+    return (
+      <div style={{ maxWidth: 680, margin: "60px auto", padding: "0 20px", textAlign: "center" }}>
+        <h1 className="wordmark" style={{ fontSize: 32 }}>Cram<span className="red">Forge</span></h1>
+        <p style={{ color: "var(--ink-soft)", marginTop: 24 }}>{error}</p>
+        <button className="btn" style={{ marginTop: 16 }} onClick={onSignup}>Go to CramForge →</button>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div style={{ maxWidth: 680, margin: "60px auto", padding: "0 20px", textAlign: "center" }}>
+        <p className="mono small"><span className="spin">◌</span> Loading question set…</p>
+      </div>
+    );
+  }
+
+  const questions = data.questions || [];
+
+  return (
+    <div style={{ maxWidth: 720, margin: "0 auto", padding: "40px 20px 80px" }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "baseline", gap: 16, marginBottom: 6, flexWrap: "wrap" }}>
+        <h1 className="wordmark" style={{ fontSize: 28 }}>Cram<span className="red">Forge</span></h1>
+        <span className="eyebrow">shared practice set</span>
+      </div>
+      <h2 className="h-display" style={{ marginBottom: 4 }}>{data.unit_name}</h2>
+      <p className="small muted" style={{ marginBottom: 32 }}>
+        {questions.length} question{questions.length !== 1 ? "s" : ""} · {data.views || 0} views
+      </p>
+
+      {/* Questions */}
+      {questions.map((q, i) => (
+        <SharedQuestion key={i} q={q} index={i} />
+      ))}
+
+      {/* CTA */}
+      <div style={{
+        background: "var(--paper)",
+        border: "2px solid var(--ink)",
+        borderRadius: 10,
+        padding: "28px 26px",
+        marginTop: 32,
+        textAlign: "center",
+        boxShadow: "4px 4px 0 rgba(26,34,56,.1)"
+      }}>
+        <h3 style={{ fontFamily: "var(--display)", fontSize: 22, fontWeight: 700, margin: "0 0 10px" }}>
+          Practise with your own notes
+        </h3>
+        <p className="small" style={{ color: "var(--ink-soft)", margin: "0 0 18px", lineHeight: 1.6 }}>
+          Upload your lecture notes and get unlimited exam-style questions — then have your working marked with partial credit, just like a real exam. Free.
+        </p>
+        <button className="btn" style={{ marginRight: 10 }} onClick={onSignup}>
+          Try CramForge free →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+=== src/SocialProfile.jsx ===
+import { useState, useEffect } from "react";
+import { getPublicProfile } from "./api.js";
+
+function fmtDuration(secs) {
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  if (h > 0 && m > 0) return `${h}h ${m}m`;
+  if (h > 0)          return `${h}h`;
+  if (m > 0)          return `${m}m`;
+  return `${secs}s`;
+}
+
+// Simple bar chart (CSS only)
+function UnitBar({ name, seconds, max }) {
+  const pct = max > 0 ? Math.round((seconds / max) * 100) : 0;
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+        <span className="small" style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "70%" }}>{name}</span>
+        <span className="mono small" style={{ color: "var(--pencil)" }}>{fmtDuration(seconds)}</span>
+      </div>
+      <div style={{ height: 6, background: "var(--line)", borderRadius: 3, overflow: "hidden" }}>
+        <div style={{ height: "100%", width: `${pct}%`, background: "var(--red)", borderRadius: 3, transition: "width 0.6s ease" }} />
+      </div>
+    </div>
+  );
+}
+
+export default function SocialProfile({ username, onSignup }) {
+  const [data,    setData]    = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState("");
+  const [copied,  setCopied]  = useState(false);
+
+  useEffect(() => {
+    if (!username) return;
+    setLoading(true);
+    getPublicProfile(username)
+      .then((d) => {
+        if (!d || d.error) {
+          setError(d?.error || "Profile not found.");
+        } else {
+          setData(d);
+        }
+      })
+      .catch((e) => setError(e.message || "Failed to load profile."))
+      .finally(() => setLoading(false));
+  }, [username]);
+
+  const shareUrl = `${window.location.origin}?profile=${encodeURIComponent(username)}`;
+
+  const copyLink = () => {
+    navigator.clipboard?.writeText(shareUrl).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  if (loading) {
+    return (
+      <div style={{ maxWidth: 640, margin: "60px auto", textAlign: "center" }}>
+        <h1 className="wordmark" style={{ fontSize: 30 }}>Cram<span className="red">Forge</span></h1>
+        <p style={{ color: "var(--ink-soft)", marginTop: 12 }}>
+          <span className="spin">◌</span> Loading profile…
+        </p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ maxWidth: 640, margin: "60px auto", padding: "0 20px", textAlign: "center" }}>
+        <h1 className="wordmark" style={{ fontSize: 30 }}>Cram<span className="red">Forge</span></h1>
+        <p className="error-text" style={{ marginTop: 20 }}>{error}</p>
+        <button className="btn" style={{ marginTop: 20 }} onClick={() => window.history.replaceState({}, "", window.location.pathname)}>
+          Back to CramForge
+        </button>
+      </div>
+    );
+  }
+
+  const { profile, stats, recentSessions } = data;
+  const maxUnitSeconds = Math.max(...(stats.units || []).map((u) => u.seconds), 1);
+
+  return (
+    <div style={{ maxWidth: 640, margin: "0 auto", padding: "40px 20px 80px" }}>
+      {/* Brand header */}
+      <div style={{ textAlign: "center", marginBottom: 32 }}>
+        <h1 className="wordmark" style={{ fontSize: 28, display: "inline-block", marginBottom: 0 }}>
+          Cram<span className="red">Forge</span>
+        </h1>
+      </div>
+
+      {/* Profile card */}
+      <div className="booklet" style={{ marginBottom: 20, textAlign: "center", padding: "28px 24px" }}>
+        {/* Avatar */}
+        <div style={{
+          width: 64, height: 64, borderRadius: "50%",
+          background: "var(--ink)", color: "#fff",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontFamily: "var(--mono)", fontWeight: 700, fontSize: 26,
+          margin: "0 auto 12px"
+        }}>
+          {(profile.displayName || profile.username || "?")[0].toUpperCase()}
+        </div>
+
+        <h2 style={{ margin: "0 0 4px", fontFamily: "var(--display)", fontSize: 22 }}>
+          {profile.displayName || profile.username}
+        </h2>
+        <p className="mono small" style={{ color: "var(--pencil)", margin: "0 0 16px" }}>
+          @{profile.username} · member since {new Date(profile.memberSince).toLocaleDateString("en-AU", { month: "long", year: "numeric" })}
+        </p>
+
+        {/* Stat row */}
+        <div style={{ display: "flex", justifyContent: "center", gap: 32, flexWrap: "wrap", marginBottom: 20 }}>
+          <div>
+            <div style={{ fontFamily: "var(--mono)", fontSize: 28, fontWeight: 700, color: stats.streak > 0 ? "var(--red)" : "var(--ink)" }}>
+              {stats.streak > 0 ? "🔥" : ""}{stats.streak}
+            </div>
+            <div className="eyebrow">Day streak</div>
+          </div>
+          <div>
+            <div style={{ fontFamily: "var(--mono)", fontSize: 28, fontWeight: 700 }}>
+              {fmtDuration(stats.weekSeconds)}
+            </div>
+            <div className="eyebrow">This week</div>
+          </div>
+          <div>
+            <div style={{ fontFamily: "var(--mono)", fontSize: 28, fontWeight: 700 }}>
+              {fmtDuration(stats.totalSeconds)}
+            </div>
+            <div className="eyebrow">Last 30 days</div>
+          </div>
+        </div>
+
+        {/* Challenge + share */}
+        <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+          <button className="btn" style={{ background: "var(--red)", borderColor: "var(--red)" }} onClick={copyLink}>
+            {copied ? "✓ Link copied!" : "Challenge them →"}
+          </button>
+          <button className="btn ghost" onClick={onSignup}>
+            Track my own stats
+          </button>
+        </div>
+      </div>
+
+      {/* Unit breakdown */}
+      {stats.units?.length > 0 && (
+        <div className="booklet" style={{ marginBottom: 20 }}>
+          <div className="eyebrow" style={{ marginBottom: 14 }}>Study time by subject</div>
+          {stats.units.map((u) => (
+            <UnitBar key={u.name} name={u.name} seconds={u.seconds} max={maxUnitSeconds} />
+          ))}
+        </div>
+      )}
+
+      {/* Recent sessions */}
+      {recentSessions?.length > 0 && (
+        <div className="booklet" style={{ marginBottom: 20 }}>
+          <div className="eyebrow" style={{ marginBottom: 12 }}>Recent sessions</div>
+          {recentSessions.map((s, i) => (
+            <div key={i} style={{
+              display: "flex", gap: 12, padding: "10px 0",
+              borderBottom: i < recentSessions.length - 1 ? "1px solid var(--line)" : "none",
+              alignItems: "center"
+            }}>
+              <div style={{ fontFamily: "var(--mono)", fontWeight: 700, minWidth: 48 }}>
+                {fmtDuration(s.duration_seconds)}
+              </div>
+              <div>
+                <div className="small" style={{ fontWeight: 500 }}>{s.unit_name || "General"}</div>
+                <div className="small muted">
+                  {new Date(s.ended_at).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* CTA */}
+      <div className="booklet" style={{ background: "var(--red-soft)", border: "1.5px solid var(--red)", textAlign: "center" }}>
+        <p style={{ margin: "0 0 12px", fontWeight: 600, color: "var(--red)" }}>
+          Study smarter with CramForge
+        </p>
+        <p className="small muted" style={{ margin: "0 0 16px" }}>
+          Upload your lecture notes and get unlimited exam-style questions with AI marking and tracked weak topics.
+        </p>
+        <button className="btn" style={{ background: "var(--red)", borderColor: "var(--red)" }} onClick={onSignup}>
+          Start for free →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+=== src/StudyFeed.jsx ===
+// src/StudyFeed.jsx — BeReal-style study feed.
+// Post a photo of your study session with duration + unit; see friends' posts; manage friends.
+// Self-contained: talks to /api/social (feed + friends scopes) directly.
+
+import { useState, useEffect, useRef } from "react";
+import { supabase } from "./supabase.js";
+
+async function call(path, body) {
+  const { data: { session } } = await supabase.auth.getSession();
+  const res = await fetch(path, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
+    },
+    body: JSON.stringify(body || {}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  return data;
+}
+
+// Downscale + compress a photo client-side so uploads stay small and fast.
+function compressImage(file, maxDim = 1280, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL("image/jpeg", quality);
+      resolve({
+        base64: dataUrl.split(",")[1],
+        mediaType: "image/jpeg",
+        preview: dataUrl,
+      });
+    };
+    img.onerror = () => reject(new Error("Could not read that photo."));
+    img.src = url;
+  });
+}
+
+function timeAgo(iso) {
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+export default function StudyFeed({ unitNames = [] }) {
+  const [view, setView] = useState("feed"); // feed | friends
+  const [posts, setPosts] = useState(null);
+  const [friendCount, setFriendCount] = useState(0);
+  const [error, setError] = useState("");
+
+  // composer state
+  const [photo, setPhoto] = useState(null);
+  const [caption, setCaption] = useState("");
+  const [unitName, setUnitName] = useState(unitNames[0] || "");
+  const [duration, setDuration] = useState("");
+  const [posting, setPosting] = useState(false);
+  const fileRef = useRef(null);
+
+  const loadFeed = () => {
+    call("/api/social", { scope: "feed", action: "feed" })
+      .then((d) => {
+        setPosts(d.posts);
+        setFriendCount(d.friendCount);
+      })
+      .catch((e) => setError(e.message));
+  };
+  useEffect(loadFeed, []);
+
+  const pickPhoto = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    setError("");
+    try {
+      setPhoto(await compressImage(file));
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const submitPost = async () => {
+    if (!photo || posting) return;
+    setPosting(true);
+    setError("");
+    try {
+      await call("/api/social", {
+        scope: "feed",
+        action: "post",
+        imageBase64: photo.base64,
+        mediaType: photo.mediaType,
+        caption: caption.trim(),
+        unitName: unitName.trim(),
+        durationMinutes: duration ? Number(duration) : null,
+      });
+      setPhoto(null);
+      setCaption("");
+      setDuration("");
+      loadFeed();
+    } catch (e) {
+      setError(e.message);
+    }
+    setPosting(false);
+  };
+
+  const deletePost = async (id) => {
+    if (!window.confirm("Delete this post?")) return;
+    try {
+      await call("/api/social", { scope: "feed", action: "delete", postId: id });
+      setPosts((p) => p.filter((x) => x.id !== id));
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  return (
+    <>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+        <h2 className="h-display" style={{ margin: 0 }}>Study feed</h2>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button className={"btn sm" + (view === "feed" ? "" : " ghost")} onClick={() => setView("feed")}>
+            Feed
+          </button>
+          <button className={"btn sm" + (view === "friends" ? "" : " ghost")} onClick={() => setView("friends")}>
+            Friends ({friendCount})
+          </button>
+        </div>
+      </div>
+      <p className="small muted" style={{ margin: "6px 0 18px" }}>
+        Snap a photo mid-session, tag the unit and how long you studied. Only you and your friends
+        see your posts.
+      </p>
+      {error && <p className="error-text" style={{ marginBottom: 12 }}>{error}</p>}
+
+      {view === "friends" ? (
+        <FriendsPanel onChanged={loadFeed} />
+      ) : (
+        <>
+          {/* composer */}
+          <div className="booklet">
+            <div className="eyebrow" style={{ marginBottom: 10 }}>Post your session</div>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={pickPhoto}
+              style={{ display: "none" }}
+              aria-hidden="true"
+            />
+            {!photo ? (
+              <button className="btn red" onClick={() => fileRef.current && fileRef.current.click()}>
+                📷 Snap your study setup
+              </button>
+            ) : (
+              <>
+                <img
+                  src={photo.preview}
+                  alt="Your study session"
+                  style={{ width: "100%", maxHeight: 340, objectFit: "cover", borderRadius: 8, border: "1.5px solid var(--ink)" }}
+                />
+                <div className="row" style={{ marginTop: 12 }}>
+                  <div>
+                    <label className="eyebrow" htmlFor="sf-unit">Unit</label>
+                    {unitNames.length ? (
+                      <select id="sf-unit" value={unitName} onChange={(e) => setUnitName(e.target.value)}>
+                        {unitNames.map((u) => <option key={u} value={u}>{u}</option>)}
+                        <option value="">Other</option>
+                      </select>
+                    ) : (
+                      <input id="sf-unit" type="text" value={unitName} onChange={(e) => setUnitName(e.target.value)} placeholder="e.g. ENG1090" />
+                    )}
+                  </div>
+                  <div>
+                    <label className="eyebrow" htmlFor="sf-dur">Minutes studied</label>
+                    <input id="sf-dur" type="number" min="1" max="1440" value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="e.g. 90" />
+                  </div>
+                </div>
+                <label className="eyebrow" htmlFor="sf-cap" style={{ marginTop: 12 }}>Caption (optional)</label>
+                <input id="sf-cap" type="text" maxLength={300} value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Trig sub grind continues…" />
+                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                  <button className="btn red" onClick={submitPost} disabled={posting}>
+                    {posting ? "Posting…" : "Post it"}
+                  </button>
+                  <button className="btn ghost" onClick={() => fileRef.current && fileRef.current.click()}>Retake</button>
+                  <button className="btn ghost" onClick={() => setPhoto(null)}>Discard</button>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* feed */}
+          {posts === null && <p className="mono small"><span className="spin">◌</span> Loading feed…</p>}
+          {posts && posts.length === 0 && (
+            <div className="notice">
+              Nothing here yet. Post your first study photo above — and add some friends in the
+              Friends tab so their sessions show up here too.
+            </div>
+          )}
+          {posts && posts.map((p) => (
+            <div className="booklet" key={p.id} style={{ padding: 0, overflow: "hidden" }}>
+              <img
+                src={p.photoUrl}
+                alt={`${p.displayName || p.username || "Someone"} studying`}
+                style={{ width: "100%", maxHeight: 420, objectFit: "cover", display: "block" }}
+                loading="lazy"
+              />
+              <div style={{ padding: "14px 16px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+                  <span style={{ fontWeight: 600 }}>
+                    {p.displayName || p.username || "Anonymous"}
+                    {p.username && <span className="mono small muted"> @{p.username}</span>}
+                  </span>
+                  <span className="mono small muted">{timeAgo(p.createdAt)}</span>
+                </div>
+                <div className="chips" style={{ margin: "8px 0" }}>
+                  {p.unitName && <span className="chip" style={{ cursor: "default" }}>{p.unitName}</span>}
+                  {p.durationMinutes && (
+                    <span className="chip on" style={{ cursor: "default" }}>⏱ {p.durationMinutes} min</span>
+                  )}
+                </div>
+                {p.caption && <p style={{ margin: "6px 0 0", fontSize: 14, lineHeight: 1.5 }}>{p.caption}</p>}
+                {p.mine && (
+                  <button className="btn sm ghost" style={{ marginTop: 10, color: "var(--red)", borderColor: "var(--red)" }} onClick={() => deletePost(p.id)}>
+                    Delete
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+    </>
+  );
+}
+
+function FriendsPanel({ onChanged }) {
+  const [data, setData] = useState(null);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState([]);
+  const [msg, setMsg] = useState("");
+
+  const refresh = () => {
+    call("/api/social", { scope: "friends", action: "list" }).then(setData).catch((e) => setMsg(e.message));
+  };
+  useEffect(refresh, []);
+
+  const search = async () => {
+    setMsg("");
+    try {
+      const d = await call("/api/social", { scope: "friends", action: "search", query });
+      setResults(d.results);
+      if (!d.results.length) setMsg("No one found with that name. They need a username set in Account first.");
+    } catch (e) {
+      setMsg(e.message);
+    }
+  };
+
+  const act = async (action, payload) => {
+    setMsg("");
+    try {
+      await call("/api/social", { scope: "friends", action, ...payload });
+      refresh();
+      onChanged && onChanged();
+      if (action === "request") setMsg("Request sent ✓");
+    } catch (e) {
+      setMsg(e.message);
+    }
+  };
+
+  return (
+    <>
+      <div className="booklet">
+        <div className="eyebrow" style={{ marginBottom: 10 }}>Find friends</div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && search()}
+            placeholder="Search by username…"
+          />
+          <button className="btn" style={{ flexShrink: 0 }} onClick={search}>Search</button>
+        </div>
+        {results.map((r) => (
+          <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
+            <span>{r.display_name || r.username} <span className="mono small muted">@{r.username}</span></span>
+            <button className="btn sm" onClick={() => act("request", { userId: r.id })}>Add friend</button>
+          </div>
+        ))}
+        {msg && <p className="small" style={{ marginTop: 10, color: msg.includes("✓") ? "var(--green)" : "var(--red)" }}>{msg}</p>}
+      </div>
+
+      {data && data.incoming.length > 0 && (
+        <div className="booklet">
+          <div className="eyebrow" style={{ marginBottom: 10 }}>Requests for you</div>
+          {data.incoming.map((f) => (
+            <div key={f.friendshipId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <span>{f.displayName || f.username} <span className="mono small muted">@{f.username}</span></span>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button className="btn sm" onClick={() => act("accept", { friendshipId: f.friendshipId })}>Accept</button>
+                <button className="btn sm ghost" onClick={() => act("remove", { friendshipId: f.friendshipId })}>Decline</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="booklet">
+        <div className="eyebrow" style={{ marginBottom: 10 }}>
+          Your friends {data ? `(${data.friends.length})` : ""}
+        </div>
+        {data && data.friends.length === 0 && (
+          <p className="small muted">No friends yet — search above. Friends see each other's study posts.</p>
+        )}
+        {data && data.friends.map((f) => (
+          <div key={f.friendshipId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <span>{f.displayName || f.username} <span className="mono small muted">@{f.username}</span></span>
+            <button className="btn sm ghost" onClick={() => act("remove", { friendshipId: f.friendshipId })}>Remove</button>
+          </div>
+        ))}
+        {data && data.outgoing.length > 0 && (
+          <>
+            <div className="eyebrow" style={{ margin: "14px 0 8px" }}>Sent — waiting</div>
+            {data.outgoing.map((f) => (
+              <div key={f.friendshipId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <span className="muted">{f.displayName || f.username}</span>
+                <button className="btn sm ghost" onClick={() => act("remove", { friendshipId: f.friendshipId })}>Cancel</button>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
+
+=== src/StudyTimer.jsx ===
+import { useState, useEffect, useRef } from "react";
+import { saveStudySession, loadStudySessions, getLeaderboard } from "./api.js";
+
+function fmtTime(secs) {
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function fmtDuration(secs) {
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  if (h > 0 && m > 0) return `${h}h ${m}m`;
+  if (h > 0)          return `${h}h`;
+  if (m > 0)          return `${m}m`;
+  return `${secs}s`;
+}
+
+function fmtDate(iso) {
+  const d = new Date(iso);
+  const now = new Date();
+  const diffDays = Math.floor((now - d) / 86400000);
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  return d.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" });
+}
+
+// Circular timer display
+function TimerRing({ elapsed, running }) {
+  const size = 160;
+  const r    = 66;
+  const circ = 2 * Math.PI * r;
+  // Pulse every 60s if running
+  const pulse = running && elapsed % 60 === 0 && elapsed > 0;
+
+  return (
+    <div style={{
+      position: "relative", width: size, height: size, margin: "0 auto",
+      filter: running ? "drop-shadow(0 0 12px rgba(215,38,61,0.25))" : "none",
+      transition: "filter 0.4s"
+    }}>
+      <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="var(--line)" strokeWidth="6" />
+        <circle
+          cx={size/2} cy={size/2} r={r}
+          fill="none"
+          stroke={running ? "var(--red)" : "var(--pencil)"}
+          strokeWidth="6"
+          strokeLinecap="round"
+          strokeDasharray={circ}
+          strokeDashoffset={circ - (circ * ((elapsed % 3600) / 3600))}
+          style={{ transition: "stroke-dashoffset 0.8s linear, stroke 0.3s" }}
+        />
+      </svg>
+      <div style={{
+        position: "absolute", inset: 0,
+        display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center"
+      }}>
+        <span style={{
+          fontFamily: "var(--mono)", fontSize: 30, fontWeight: 700,
+          color: running ? "var(--red)" : "var(--ink)",
+          letterSpacing: "0.04em",
+          transition: "color 0.3s"
+        }}>
+          {fmtTime(elapsed)}
+        </span>
+        {running && (
+          <span className="eyebrow" style={{ color: "var(--red)", marginTop: 2 }}>STUDYING</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function StudyTimer({ units, username, onSessionSaved }) {
+  const [running,       setRunning]       = useState(false);
+  const [elapsed,       setElapsed]       = useState(0);
+  const [selectedUnit,  setSelectedUnit]  = useState(Object.values(units || {})[0]?.name || "");
+  const [startTime,     setStartTime]     = useState(null);
+  const [history,       setHistory]       = useState([]);
+  const [stats,         setStats]         = useState({ streak: 0, weekSeconds: 0 });
+  const [leaderboard,   setLeaderboard]   = useState([]);
+  const [lastSession,   setLastSession]   = useState(null);
+  const [saving,        setSaving]        = useState(false);
+  const [view,          setView]          = useState("timer"); // timer | leaderboard
+  const intervalRef = useRef(null);
+
+  useEffect(() => {
+    loadStudySessions(10).then((d) => {
+      setHistory(d.sessions || []);
+      setStats({ streak: d.streak || 0, weekSeconds: d.weekSeconds || 0 });
+    }).catch(() => {});
+    getLeaderboard().then(setLeaderboard).catch(() => {});
+  }, []);
+
+  const start = () => {
+    if (running) return;
+    setRunning(true);
+    setElapsed(0);
+    setStartTime(new Date());
+    setLastSession(null);
+    intervalRef.current = setInterval(() => setElapsed((e) => e + 1), 1000);
+  };
+
+  const stop = async () => {
+    clearInterval(intervalRef.current);
+    setRunning(false);
+    const endTime = new Date();
+    const dur     = elapsed;
+    setElapsed(0);
+
+    if (dur >= 30) {
+      setSaving(true);
+      try {
+        await saveStudySession({
+          unitName:        selectedUnit || null,
+          durationSeconds: dur,
+          startedAt:       startTime?.toISOString(),
+          endedAt:         endTime.toISOString(),
+        });
+        const session = {
+          unit_name:       selectedUnit || null,
+          duration_seconds: dur,
+          started_at:      startTime?.toISOString(),
+          ended_at:        endTime.toISOString(),
+        };
+        setLastSession(session);
+        setHistory((h) => [session, ...h.slice(0, 9)]);
+        onSessionSaved && onSessionSaved(session);
+
+        // Refresh stats
+        loadStudySessions(10).then((d) => {
+          setStats({ streak: d.streak || 0, weekSeconds: d.weekSeconds || 0 });
+        }).catch(() => {});
+      } catch (e) {
+        // silent — session just won't be saved
+      }
+      setSaving(false);
+    }
+  };
+
+  const unitList = Object.values(units || {}).map((u) => u.name);
+
+  const copyProfileLink = () => {
+    if (!username) return;
+    const url = `${window.location.origin}?profile=${encodeURIComponent(username)}`;
+    navigator.clipboard?.writeText(url).catch(() => {});
+    alert(`Copied: ${url}\n\nShare this with friends to compare your stats.`);
+  };
+
+  return (
+    <div style={{ maxWidth: 640, margin: "0 auto" }}>
+      {/* Stats bar */}
+      <div className="booklet" style={{
+        display: "flex", gap: 20, justifyContent: "space-around",
+        flexWrap: "wrap", padding: "14px 20px", marginBottom: 20
+      }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontFamily: "var(--mono)", fontSize: 24, fontWeight: 700, color: stats.streak > 0 ? "var(--red)" : "var(--ink)" }}>
+            {stats.streak > 0 ? "🔥" : ""}{stats.streak}
+          </div>
+          <div className="eyebrow" style={{ marginTop: 2 }}>Day streak</div>
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontFamily: "var(--mono)", fontSize: 24, fontWeight: 700 }}>
+            {fmtDuration(stats.weekSeconds)}
+          </div>
+          <div className="eyebrow" style={{ marginTop: 2 }}>This week</div>
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontFamily: "var(--mono)", fontSize: 24, fontWeight: 700 }}>
+            {history.length}
+          </div>
+          <div className="eyebrow" style={{ marginTop: 2 }}>Sessions saved</div>
+        </div>
+      </div>
+
+      {/* View toggle */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+        {["timer", "leaderboard"].map((v) => (
+          <button
+            key={v}
+            className={"btn ghost sm" + (view === v ? " active-tab" : "")}
+            style={view === v ? { background: "var(--ink)", color: "#fff", borderColor: "var(--ink)" } : {}}
+            onClick={() => setView(v)}
+          >
+            {v === "timer" ? "Timer" : "Leaderboard"}
+          </button>
+        ))}
+        {username && (
+          <button className="btn ghost sm" onClick={copyProfileLink} style={{ marginLeft: "auto" }}>
+            Share my profile
+          </button>
+        )}
+      </div>
+
+      {/* Timer view */}
+      {view === "timer" && (
+        <>
+          <div className="booklet" style={{ textAlign: "center", padding: "28px 24px" }}>
+            <TimerRing elapsed={elapsed} running={running} />
+
+            {/* Unit selector */}
+            {unitList.length > 0 && (
+              <div style={{ marginTop: 20 }}>
+                <label className="eyebrow" htmlFor="timer-unit">Studying</label>
+                <select
+                  id="timer-unit"
+                  value={selectedUnit}
+                  onChange={(e) => setSelectedUnit(e.target.value)}
+                  disabled={running}
+                  style={{ marginTop: 6, textAlign: "center" }}
+                >
+                  <option value="">— Select subject —</option>
+                  {unitList.map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
+            )}
+
+            {/* Controls */}
+            <div style={{ marginTop: 20, display: "flex", gap: 10, justifyContent: "center" }}>
+              {!running ? (
+                <button className="btn" style={{ background: "var(--red)", borderColor: "var(--red)", minWidth: 140, fontSize: 16 }} onClick={start}>
+                  Start studying
+                </button>
+              ) : (
+                <button className="btn ghost" style={{ minWidth: 140, fontSize: 16, borderColor: "var(--red)", color: "var(--red)" }} onClick={stop}>
+                  {saving ? <><span className="spin">◌</span> Saving…</> : "Stop & save"}
+                </button>
+              )}
+            </div>
+
+            {!running && elapsed === 0 && (
+              <p className="small muted" style={{ marginTop: 12 }}>
+                Timer saves automatically when you stop.{username ? " Sessions appear on your public profile." : ""}
+              </p>
+            )}
+          </div>
+
+          {/* Last session share card */}
+          {lastSession && (
+            <div className="booklet" style={{ background: "var(--green-soft)", border: "1.5px solid var(--green)", marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ fontFamily: "var(--mono)", fontSize: 28, fontWeight: 700, color: "var(--green)" }}>
+                  {fmtDuration(lastSession.duration_seconds)}
+                </div>
+                <div>
+                  <div style={{ fontWeight: 600, color: "var(--green)" }}>Session saved</div>
+                  <div className="small muted">
+                    {lastSession.unit_name ? `${lastSession.unit_name} · ` : ""}
+                    {new Date(lastSession.ended_at).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit" })}
+                  </div>
+                </div>
+                {username && (
+                  <button className="btn ghost sm" style={{ marginLeft: "auto", borderColor: "var(--green)", color: "var(--green)" }} onClick={copyProfileLink}>
+                    Share →
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Session history */}
+          {history.length > 0 && (
+            <div className="booklet">
+              <div className="eyebrow" style={{ marginBottom: 10 }}>Recent sessions</div>
+              {history.map((s, i) => (
+                <div key={i} style={{
+                  display: "flex", alignItems: "center", gap: 12,
+                  padding: "10px 0",
+                  borderBottom: i < history.length - 1 ? "1px solid var(--line)" : "none"
+                }}>
+                  <div style={{ fontFamily: "var(--mono)", fontWeight: 700, minWidth: 50 }}>
+                    {fmtDuration(s.duration_seconds)}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="small" style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {s.unit_name || "General"}
+                    </div>
+                    <div className="small muted">{fmtDate(s.ended_at)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Leaderboard view */}
+      {view === "leaderboard" && (
+        <div className="booklet">
+          <div className="eyebrow" style={{ marginBottom: 14 }}>Weekly study leaderboard</div>
+          {leaderboard.length === 0 ? (
+            <p className="small muted">
+              No sessions yet this week — start the timer and study to appear here.
+            </p>
+          ) : (
+            leaderboard.map((entry, i) => (
+              <div key={i} style={{
+                display: "flex", alignItems: "center", gap: 14, padding: "11px 0",
+                borderBottom: i < leaderboard.length - 1 ? "1px solid var(--line)" : "none"
+              }}>
+                {/* Rank */}
+                <div style={{
+                  width: 30, textAlign: "center", fontFamily: "var(--mono)", fontWeight: 700, fontSize: 15,
+                  color: i === 0 ? "var(--red)" : i === 1 ? "var(--amber)" : "var(--pencil)"
+                }}>
+                  {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`}
+                </div>
+
+                {/* Avatar initial */}
+                <div style={{
+                  width: 34, height: 34, borderRadius: "50%",
+                  background: i === 0 ? "var(--red)" : "var(--ink)",
+                  color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
+                  fontFamily: "var(--mono)", fontWeight: 700, fontSize: 14, flexShrink: 0
+                }}>
+                  {(entry.display_name || entry.username || "?")[0].toUpperCase()}
+                </div>
+
+                {/* Name + stats */}
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>
+                    {entry.display_name || entry.username}
+                  </div>
+                  <div className="small muted">
+                    {entry.active_days} active day{entry.active_days !== 1 ? "s" : ""} · {entry.session_count} session{entry.session_count !== 1 ? "s" : ""}
+                  </div>
+                </div>
+
+                {/* Time */}
+                <div style={{ fontFamily: "var(--mono)", fontWeight: 700, fontSize: 16, color: i === 0 ? "var(--red)" : "var(--ink)" }}>
+                  {fmtDuration(entry.total_seconds || 0)}
+                </div>
+              </div>
+            ))
+          )}
+          <p className="small muted" style={{ marginTop: 14 }}>
+            Rankings are based on total study time in the last 7 days. Public profiles only.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+=== src/main.jsx ===
+import React from "react";
+import { createRoot } from "react-dom/client";
+import App from "./App.jsx";
+import "./styles.css";
+
+createRoot(document.getElementById("root")).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+
+=== src/api.js ===
+import { supabase } from "./supabase.js";
+
+async function post(path, body, { anon = false } = {}) {
+  const { data: { session } } = await supabase.auth.getSession();
+  const res = await fetch(path, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(!anon && session ? { Authorization: `Bearer ${session.access_token}` } : {}),
+    },
+    body: JSON.stringify(body || {}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    if (res.status === 402 || res.status === 429) {
+      window.dispatchEvent(new CustomEvent("cramforge:limit", { detail: { message: data.error } }));
+    }
+    throw new Error(data.error || `Request failed (${res.status})`);
+  }
+  return data;
+}
+
+async function authedGet(path) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return null;
+  const res = await fetch(path, {
+    headers: { Authorization: `Bearer ${session.access_token}` },
+  });
+  if (!res.ok) return null;
+  return res.json().catch(() => null);
+}
+
+async function get(path) {
+  const res = await fetch(path);
+  if (!res.ok) return null;
+  return res.json().catch(() => null);
+}
+
+// ── Core AI endpoints ──────────────────────────────────────────────────────
+export const generateAnon      = (payload) => post("/api/ai?op=generate", payload, { anon: true });
+export const ingestMaterial    = (payload) => post("/api/ai?op=ingest", payload);
+export const generateQuestions = (payload) => post("/api/ai?op=generate", payload);
+export const gradeAttempt      = (payload) => post("/api/ai?op=grade", payload);
+export const explainConcept    = (payload) => post("/api/ai?op=explain", payload);
+
+// ── PDF export ─────────────────────────────────────────────────────────────
+// Returns a Blob — download it client-side as a file.
+export async function exportPDF(payload) {
+  const { data: { session } } = await supabase.auth.getSession();
+  const res = await fetch("/api/export-pdf", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
+    },
+    body: JSON.stringify(payload || {}),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    if (res.status === 402 || res.status === 429) {
+      window.dispatchEvent(new CustomEvent("cramforge:limit", { detail: { message: err.error } }));
+    }
+    throw new Error(err.error || `PDF export failed (${res.status})`);
+  }
+  return res.blob();
+}
+
+// ── Billing ────────────────────────────────────────────────────────────────
+export const startCheckout    = ()           => post("/api/billing?op=checkout");
+export const activateSession  = (sessionId) => post("/api/billing?op=activate", { sessionId });
+export const openPortal       = ()           => post("/api/billing?op=portal");
+export const fetchMe          = ()           => post("/api/account?op=me");
+
+// ── Shared question sets ───────────────────────────────────────────────────
+export const shareSet    = (payload) => post("/api/share", payload);
+export const getSharedSet = (id) =>
+  fetch(`/api/share?id=${encodeURIComponent(id)}`).then((r) => r.json());
+
+// ── Cross-device sync ──────────────────────────────────────────────────────
+export const syncState       = (state) => post("/api/account?op=sync", { state });
+export const loadServerState = () => authedGet("/api/account?op=sync").then((d) => d?.state || null);
+
+// ── Quick Study (MCQ rapid-fire) ───────────────────────────────────────────
+export const quickGenerate = (payload) => post("/api/ai?op=quick", payload);
+
+// ── Study sessions ─────────────────────────────────────────────────────────
+export const saveStudySession = (payload)  => post("/api/study-session", payload);
+export const loadStudySessions = (limit = 20) =>
+  authedGet(`/api/study-session?limit=${limit}`).then((d) => d || { sessions: [], streak: 0, weekSeconds: 0 });
+
+// ── Social profile ─────────────────────────────────────────────────────────
+export const getPublicProfile = (username) =>
+  get(`/api/account?op=profile&username=${encodeURIComponent(username)}`);
+export const getLeaderboard   = () =>
+  get("/api/account?op=profile&leaderboard=1").then((d) => d?.leaderboard || []);
+export const updateProfile    = (payload)  => post("/api/account?op=profile", payload);
+
+// ── Classes (tutors + students) ────────────────────────────────────────────
+export const createClass = (name)    => post("/api/social", { scope: "class", action: "create", name });
+export const joinClass   = (code)    => post("/api/social", { scope: "class", action: "join",   code });
+export const leaveClass  = (classId) => post("/api/social", { scope: "class", action: "leave",  classId });
+export const deleteClass = (classId) => post("/api/social", { scope: "class", action: "delete", classId });
+export const loadClasses = ()        => authedGet("/api/social?scope=class").then((d) => d || { owned: [], joined: [] });
+
+// ── Public question bank ───────────────────────────────────────────────────
+export const loadBank = ({ subject, featured, page = 0 } = {}) => {
+  const q = new URLSearchParams({ page });
+  if (subject)  q.set("subject",  subject);
+  if (featured) q.set("featured", "1");
+  return get(`/api/bank?${q.toString()}`).then((d) => d || { sets: [], total: 0 });
+};
+
+// ── File helpers ───────────────────────────────────────────────────────────
+export function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload  = () => resolve(String(r.result).split(",")[1]);
+    r.onerror = () => reject(new Error("Could not read file"));
+    r.readAsDataURL(file);
+  });
+}
+
+export function fileToText(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload  = () => resolve(String(r.result));
+    r.onerror = () => reject(new Error("Could not read file"));
+    r.readAsText(file);
+  });
+}
+
+
+=== src/storage.js ===
+// All user data lives in localStorage under one key.
+// Shape:
+// {
+//   activeUnitId: string|null,
+//   units: {
+//     [id]: {
+//       id, name,
+//       materials: [{ title, topics: [...], notes: "..." }],
+//       stats: { [topic]: { attempts, scored, max, errors: { concept, algebra, arithmetic, incomplete } } },
+//       history: [{ ts, topic, score, max, errorType, mode }]
+//     }
+//   }
+// }
+
+const KEY = "cramforge-v1";
+
+export function loadState() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return { activeUnitId: null, units: {} };
+}
+
+export function saveState(state) {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(state));
+  } catch (e) {
+    console.error("Could not save — storage may be full.", e);
+  }
+}
+
+// Subject types determine the question format and marking rubric
+export const SUBJECT_TYPES = [
+  { value: "stem",       label: "STEM (maths, science, engineering)" },
+  { value: "essay",      label: "Essay (humanities, social science)" },
+  { value: "law",        label: "Law (IRAC analysis)" },
+  { value: "accounting", label: "Accounting (journal entries, ratios)" },
+  { value: "medicine",   label: "Medicine / Health Sciences" },
+];
+
+export function newUnit(name, subjectType = "stem") {
+  return {
+    id: "u" + Date.now().toString(36),
+    name,
+    subjectType,
+    materials: [],
+    stats: {},
+    history: [],
+  };
+}
+
+export function unitTopics(unit) {
+  const set = new Set();
+  (unit.materials || []).forEach((m) => (m.topics || []).forEach((t) => set.add(t)));
+  return Array.from(set);
+}
+
+export function unitNotes(unit) {
+  return (unit.materials || [])
+    .map((m) => `--- ${m.title} ---\n${m.notes}`)
+    .join("\n\n");
+}
+
+export function recordResult(unit, { topic, score, max, errorType, mode }) {
+  const stats = { ...(unit.stats || {}) };
+  const s = stats[topic] || {
+    attempts: 0,
+    scored: 0,
+    max: 0,
+    errors: { concept: 0, algebra: 0, arithmetic: 0, incomplete: 0 },
+  };
+  const errors = { ...s.errors };
+  if (errorType && errorType !== "none") {
+    errors[errorType] = (errors[errorType] || 0) + 1;
+  }
+  stats[topic] = {
+    attempts: s.attempts + 1,
+    scored: s.scored + score,
+    max: s.max + max,
+    errors,
+  };
+  const history = [
+    ...(unit.history || []),
+    { ts: Date.now(), topic, score, max, errorType, mode },
+  ].slice(-500);
+  return { ...unit, stats, history };
+}
+
+export function weakTopics(unit) {
+  const out = [];
+  Object.entries(unit.stats || {}).forEach(([topic, s]) => {
+    if (s.attempts >= 2 && s.max > 0 && s.scored / s.max < 0.6) out.push(topic);
+  });
+  return out;
+}
+
+export function exportBackup(state) {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `cramforge-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+=== src/supabase.js ===
+import { createClient } from "@supabase/supabase-js";
+
+export const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
+

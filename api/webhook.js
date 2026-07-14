@@ -11,7 +11,7 @@
 //   customer.subscription.deleted
 
 import Stripe from "stripe";
-import { adminClient } from "./_auth.js";
+import { adminClient } from "../lib/_auth.js";
 
 // Must disable Vercel's body parser — Stripe signature verification needs the raw body.
 export const config = { api: { bodyParser: false } };
@@ -111,3 +111,4 @@ export default async function handler(req, res) {
     return res.status(200).json({ received: true, error: "Handler error logged." });
   }
 }
+

@@ -1,6 +1,6 @@
 // src/StudyFeed.jsx — BeReal-style study feed.
 // Post a photo of your study session with duration + unit; see friends' posts; manage friends.
-// Self-contained: talks to /api/feed and /api/friends directly.
+// Self-contained: talks to /api/social (feed + friends scopes) directly.
 
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "./supabase.js";
@@ -68,7 +68,7 @@ export default function StudyFeed({ unitNames = [] }) {
   const fileRef = useRef(null);
 
   const loadFeed = () => {
-    call("/api/feed", { action: "feed" })
+    call("/api/social", { scope: "feed", action: "feed" })
       .then((d) => {
         setPosts(d.posts);
         setFriendCount(d.friendCount);
@@ -94,7 +94,8 @@ export default function StudyFeed({ unitNames = [] }) {
     setPosting(true);
     setError("");
     try {
-      await call("/api/feed", {
+      await call("/api/social", {
+        scope: "feed",
         action: "post",
         imageBase64: photo.base64,
         mediaType: photo.mediaType,
@@ -115,7 +116,7 @@ export default function StudyFeed({ unitNames = [] }) {
   const deletePost = async (id) => {
     if (!window.confirm("Delete this post?")) return;
     try {
-      await call("/api/feed", { action: "delete", postId: id });
+      await call("/api/social", { scope: "feed", action: "delete", postId: id });
       setPosts((p) => p.filter((x) => x.id !== id));
     } catch (e) {
       setError(e.message);
@@ -250,14 +251,14 @@ function FriendsPanel({ onChanged }) {
   const [msg, setMsg] = useState("");
 
   const refresh = () => {
-    call("/api/friends", { action: "list" }).then(setData).catch((e) => setMsg(e.message));
+    call("/api/social", { scope: "friends", action: "list" }).then(setData).catch((e) => setMsg(e.message));
   };
   useEffect(refresh, []);
 
   const search = async () => {
     setMsg("");
     try {
-      const d = await call("/api/friends", { action: "search", query });
+      const d = await call("/api/social", { scope: "friends", action: "search", query });
       setResults(d.results);
       if (!d.results.length) setMsg("No one found with that name. They need a username set in Account first.");
     } catch (e) {
@@ -268,7 +269,7 @@ function FriendsPanel({ onChanged }) {
   const act = async (action, payload) => {
     setMsg("");
     try {
-      await call("/api/friends", { action, ...payload });
+      await call("/api/social", { scope: "friends", action, ...payload });
       refresh();
       onChanged && onChanged();
       if (action === "request") setMsg("Request sent ✓");
@@ -343,3 +344,4 @@ function FriendsPanel({ onChanged }) {
     </>
   );
 }
+

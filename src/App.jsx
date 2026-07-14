@@ -109,7 +109,7 @@ export default function App() {
     try {
       const { data: { session: s } } = await supabase.auth.getSession();
       if (!s) return;
-      const res = await fetch("/api/me", {
+      const res = await fetch("/api/account?op=me", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${s.access_token}` },
         body: JSON.stringify({}),
@@ -471,3 +471,4 @@ export default function App() {
     </>
   );
 }
+

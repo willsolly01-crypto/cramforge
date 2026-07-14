@@ -6,7 +6,7 @@
 // GET /api/bank?featured=1        → featured sets (curated) — Pro gate applied client-side
 // POST /api/bank { action: "feature", shareId, featured } → admin: toggle featured flag
 
-import { adminClient, requireUser, sendErr } from "./_auth.js";
+import { adminClient, requireUser, sendErr } from "../lib/_auth.js";
 
 // Admin user IDs — set these to the Supabase UUIDs of your admin accounts
 const ADMIN_IDS = (process.env.ADMIN_USER_IDS || "").split(",").map((s) => s.trim()).filter(Boolean);
@@ -75,3 +75,4 @@ export default async function handler(req, res) {
 
   return res.status(405).json({ error: "GET or POST only" });
 }
+

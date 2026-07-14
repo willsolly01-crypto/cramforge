@@ -1,7 +1,8 @@
 // POST /api/share  — save a question set and return a share ID
 // GET  /api/share?id=xxx — retrieve a shared set (no auth required)
 
-import { requireUser, sendErr, adminClient, httpErr } from "./_auth.js";
+import { requireUser, sendErr, adminClient, httpErr } from "../lib/_auth.js";
+import { readBody } from "../lib/_claude.js";
 
 function genId() {
   return Math.random().toString(36).slice(2, 10); // 8-char slug
@@ -36,9 +37,7 @@ export default async function handler(req, res) {
   if (req.method === "POST") {
     try {
       const { user } = await requireUser(req);
-      const body = req.body && typeof req.body === "object"
-        ? req.body
-        : JSON.parse(await rawBody(req));
+      const body = await readBody(req);
 
       const { unitName, questions, subjectType } = body;
       if (!unitName || !questions?.length) {
@@ -65,3 +64,4 @@ export default async function handler(req, res) {
 
   return res.status(405).json({ error: "GET or POST only" });
 }
+

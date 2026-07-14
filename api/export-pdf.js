@@ -3,8 +3,8 @@
 // Pro-only: free users get ONE lifetime demo export (tracked in profiles.pdf_demo_used).
 
 import PDFDocument from "pdfkit";
-import { requireUser, sendErr, httpErr } from "./_auth.js";
-import { readBody } from "./_claude.js";
+import { requireUser, sendErr, httpErr } from "../lib/_auth.js";
+import { readBody } from "../lib/_claude.js";
 
 // ── A4 layout constants ────────────────────────────────────────────────────
 const PW = 595.28;   // page width  (pts)
@@ -401,3 +401,4 @@ export default async function handler(req, res) {
     return sendErr(res, e);
   }
 }
+

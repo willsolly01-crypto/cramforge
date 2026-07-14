@@ -2,8 +2,8 @@
 // GET  ?limit=N         → last N sessions for the logged-in user
 // POST { unitName, durationSeconds, startedAt, endedAt } → save a new session
 
-import { requireUser, sendErr, adminClient } from "./_auth.js";
-import { readBody } from "./_claude.js";
+import { requireUser, sendErr, adminClient } from "../lib/_auth.js";
+import { readBody } from "../lib/_claude.js";
 
 export default async function handler(req, res) {
   try {
@@ -106,3 +106,4 @@ export default async function handler(req, res) {
     return sendErr(res, e);
   }
 }
+

@@ -300,9 +300,15 @@ export default function Auth() {
               </div>
             ))}
           </div>
+
+          {/* Legal footer */}
+          <p className="mono small" style={{ color: "var(--pencil)", textAlign: "center", marginTop: 24 }}>
+            <a href="/terms.html" target="_blank" rel="noopener" style={{ color: "var(--pencil)", textDecoration: "underline" }}>
+              Terms &amp; Refunds
+            </a>
+          </p>
         </div>
       </div>
     </div>
   );
 }
-

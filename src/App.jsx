@@ -15,6 +15,7 @@ import StudyTimer  from "./StudyTimer.jsx";
 import QuestionBank from "./QuestionBank.jsx";
 import QuickStudy  from "./QuickStudy.jsx";
 import StudyFeed   from "./StudyFeed.jsx";
+import Papers      from "./Papers.jsx";
 import OnboardingTour, { shouldShowOnboarding } from "./OnboardingTour.jsx";
 import { supabase } from "./supabase.js";
 import { activateSession, startCheckout, syncState, loadServerState } from "./api.js";
@@ -341,6 +342,13 @@ export default function App() {
             >
               Study timer
             </button>
+            <button
+              className={"btn sm ghost" + (tab === "papers" ? " active" : "")}
+              style={{ flex: 1, fontSize: 11 }}
+              onClick={() => setTab("papers")}
+            >
+              📄 Past papers
+            </button>
           </div>
 
           {/* Data + unit management */}
@@ -389,7 +397,9 @@ export default function App() {
             <StudyFeed unitNames={Object.values(state.units || {}).map((u) => u.name)} />
           )}
 
-          {tab !== "study" && tab !== "bank" && tab !== "feed" && (
+          {tab === "papers" && <Papers />}
+
+          {tab !== "study" && tab !== "bank" && tab !== "feed" && tab !== "papers" && (
             !unit ? (
               <>
                 <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
@@ -471,4 +481,3 @@ export default function App() {
     </>
   );
 }
-

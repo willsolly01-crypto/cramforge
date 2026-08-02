@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 // Reuses the same public env vars your app already has in Vercel.
-// If you already export a shared client elsewhere (e.g. src/supabaseClient.js),
+// If you already export a shared client elsewhere (e.g. src/supabase.js),
 // swap this out for that import instead — this is just self-contained by default.
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -62,29 +62,26 @@ export default function Papers() {
   }
 
   if (loading) {
-    return (
-      <div style={styles.wrap}>
-        <p style={styles.muted}>Loading papers…</p>
-      </div>
-    );
+    return <p className="small muted">Loading papers…</p>;
   }
 
   if (error) {
-    return (
-      <div style={styles.wrap}>
-        <p style={styles.error}>Couldn't load papers: {error}</p>
-      </div>
-    );
+    return <p className="small" style={{ color: "var(--red, #D85A30)" }}>Couldn't load papers: {error}</p>;
   }
 
   return (
-    <div style={styles.wrap}>
-      <div style={styles.header}>
-        <h2 style={styles.h2}>Past exam papers</h2>
+    <div style={{ maxWidth: 880 }}>
+      <h2 className="h-display">Past exam papers</h2>
+      <p className="small muted" style={{ marginBottom: 20 }}>
+        Real VCE exam papers, organised by subject — free to download.
+      </p>
+
+      {/* Constrain the select's own width instead of letting the global
+          full-width form-control style stretch it across the whole page */}
+      <div style={{ maxWidth: 220, marginBottom: 28 }}>
         <select
           value={subjectFilter}
           onChange={(e) => setSubjectFilter(e.target.value)}
-          style={styles.select}
         >
           {subjects.map((s) => (
             <option key={s} value={s}>
@@ -95,28 +92,84 @@ export default function Papers() {
       </div>
 
       {papers.length === 0 && (
-        <p style={styles.muted}>No papers uploaded yet — check back soon.</p>
+        <div className="notice">
+          No papers uploaded yet — check back soon. New papers are added regularly.
+        </div>
       )}
 
       {Object.keys(grouped)
         .sort()
         .map((subject) => (
-          <div key={subject} style={styles.group}>
-            <h3 style={styles.subjectTitle}>{subject}</h3>
-            <div style={styles.grid}>
+          <div key={subject} style={{ marginBottom: 32 }}>
+            <h3
+              style={{
+                fontFamily: "var(--display, 'Spectral', serif)",
+                fontSize: 18,
+                fontWeight: 700,
+                color: "var(--red, #D85A30)",
+                borderBottom: "2px solid var(--ink-soft, #26215C)",
+                paddingBottom: 6,
+                marginBottom: 14,
+              }}
+            >
+              {subject}
+            </h3>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+                gap: 12,
+              }}
+            >
               {grouped[subject].map((p) => (
-                <div key={p.id} style={styles.card}>
-                  <div style={styles.cardTop}>
-                    <span style={styles.badge}>{p.paper_type}</span>
-                    <span style={styles.year}>{p.year}</span>
+                <div
+                  key={p.id}
+                  style={{
+                    background: "#fff",
+                    border: "2px solid var(--ink, #26215C)",
+                    borderRadius: 6,
+                    padding: 14,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 8,
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span
+                      style={{
+                        fontFamily: "var(--mono, 'IBM Plex Mono', monospace)",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        letterSpacing: "0.04em",
+                        color: "var(--red, #D85A30)",
+                        background: "rgba(216, 90, 48, 0.1)",
+                        padding: "3px 8px",
+                        borderRadius: 4,
+                      }}
+                    >
+                      {p.paper_type}
+                    </span>
+                    <span
+                      style={{
+                        fontFamily: "var(--mono, 'IBM Plex Mono', monospace)",
+                        fontSize: 13,
+                        fontWeight: 700,
+                        color: "var(--ink-soft, #5F5E5A)",
+                      }}
+                    >
+                      {p.year}
+                    </span>
                   </div>
-                  <p style={styles.title}>{p.title}</p>
+                  <p style={{ fontSize: 14, color: "var(--ink, #26215C)", margin: "2px 0 4px", flexGrow: 1 }}>
+                    {p.title}
+                  </p>
                   <a
+                    className="btn sm ghost"
                     href={downloadUrl(p.file_path)}
                     download
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={styles.downloadBtn}
+                    style={{ textAlign: "center" }}
                   >
                     Download PDF
                   </a>
@@ -128,91 +181,3 @@ export default function Papers() {
     </div>
   );
 }
-
-const styles = {
-  wrap: {
-    fontFamily: "'IBM Plex Mono', monospace",
-    padding: "24px",
-    backgroundImage:
-      "linear-gradient(#e6e2d6 1px, transparent 1px), linear-gradient(90deg, #e6e2d6 1px, transparent 1px)",
-    backgroundSize: "26px 26px",
-    backgroundColor: "#FAF8F2",
-    minHeight: "100%",
-  },
-  header: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: "24px",
-    flexWrap: "wrap",
-    gap: "12px",
-  },
-  h2: {
-    fontFamily: "'Spectral', serif",
-    fontWeight: 700,
-    fontSize: "28px",
-    color: "#26215C",
-    margin: 0,
-  },
-  select: {
-    padding: "8px 12px",
-    border: "2px solid #26215C",
-    borderRadius: "4px",
-    background: "white",
-    fontFamily: "'IBM Plex Mono', monospace",
-    fontSize: "14px",
-    color: "#26215C",
-  },
-  group: { marginBottom: "32px" },
-  subjectTitle: {
-    fontFamily: "'Spectral', serif",
-    fontSize: "20px",
-    color: "#712B13",
-    borderBottom: "2px solid #26215C",
-    paddingBottom: "6px",
-    marginBottom: "14px",
-  },
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-    gap: "14px",
-  },
-  card: {
-    background: "white",
-    border: "2px solid #26215C",
-    borderRadius: "6px",
-    padding: "14px",
-    display: "flex",
-    flexDirection: "column",
-    gap: "8px",
-  },
-  cardTop: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  badge: {
-    fontSize: "11px",
-    fontWeight: 700,
-    color: "#712B13",
-    background: "#FAECE7",
-    padding: "3px 8px",
-    borderRadius: "4px",
-    letterSpacing: "1px",
-  },
-  year: { fontSize: "13px", color: "#5F5E5A", fontWeight: 700 },
-  title: { fontSize: "14px", color: "#444441", margin: "4px 0", flexGrow: 1 },
-  downloadBtn: {
-    display: "inline-block",
-    textAlign: "center",
-    background: "#26215C",
-    color: "white",
-    padding: "8px 12px",
-    borderRadius: "4px",
-    textDecoration: "none",
-    fontSize: "13px",
-    fontWeight: 700,
-  },
-  muted: { color: "#5F5E5A" },
-  error: { color: "#993C1D" },
-};

@@ -48,7 +48,18 @@ export default function App() {
   const [installPrompt, setInstallPrompt] = useState(null);
   const [showInstall,   setShowInstall]   = useState(false);
   const [showTour,      setShowTour]      = useState(shouldShowOnboarding());
+  const [sidebarOpen,   setSidebarOpen]   = useState(() => {
+    try { return localStorage.getItem("cf_sidebar") !== "closed"; } catch { return true; }
+  });
   const syncTimer = useRef(null);
+
+  const toggleSidebar = () => {
+    setSidebarOpen((open) => {
+      const next = !open;
+      try { localStorage.setItem("cf_sidebar", next ? "open" : "closed"); } catch { /* ignore */ }
+      return next;
+    });
+  };
 
   // ── PWA install banner ──────────────────────────────────────────────────
   useEffect(() => {
@@ -157,8 +168,8 @@ export default function App() {
     setUnitName(""); setUnitSubject("stem"); setAdding(false); setTab("materials");
   };
 
-  const deleteUnit = (id) => {
-    if (!window.confirm("Delete this unit? This can't be undone.")) return;
+  const deleteUnit = (id, opts = {}) => {
+    if (opts.confirm !== false && !window.confirm("Delete this unit? This can't be undone.")) return;
     const units = { ...state.units };
     delete units[id];
     const remaining = Object.keys(units);
@@ -191,6 +202,26 @@ export default function App() {
     ["study",     "Study timer"],
     ["account",   "Account"],
   ];
+
+  const unitNav = unit ? (
+    <nav className="tabs" role="tablist">
+      {[
+        ["materials", "Materials"],
+        ["practice",  "Practice"],
+        ["exam",      "Exam"],
+        ["progress",  "Progress"],
+        ["account",   "Account"],
+      ].map(([id, label]) => (
+        <button
+          key={id} role="tab" aria-selected={tab === id}
+          className={"tab" + (tab === id ? " active" : "")}
+          onClick={() => setTab(id)}
+        >
+          {label}
+        </button>
+      ))}
+    </nav>
+  ) : null;
 
   // Loading state
   if (session === undefined) {
@@ -254,7 +285,17 @@ export default function App() {
         </div>
       )}
 
-      <div className="shell">
+      <div className={"shell" + (sidebarOpen ? "" : " sidebar-collapsed")}>
+        <button
+          className="sidebar-toggle"
+          onClick={toggleSidebar}
+          title={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
+          aria-label={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
+          aria-expanded={sidebarOpen}
+        >
+          {sidebarOpen ? "‹" : "›"}
+        </button>
+
         {/* Email-verified toast */}
         {justVerified && (
           <div style={{ position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", zIndex: 999, background: "#1a7a4a", color: "#fff", padding: "12px 20px", borderRadius: 8, fontSize: 14, fontWeight: 500, display: "flex", alignItems: "center", gap: 12, boxShadow: "0 4px 16px rgba(0,0,0,.18)" }}>
@@ -264,6 +305,7 @@ export default function App() {
         )}
 
         <aside className="sidebar">
+          <div className="sidebar-inner">
           <h1 className="wordmark">Cram<span className="red">Forge</span></h1>
           <p className="tagline">Unlimited exam practice</p>
 
@@ -327,27 +369,24 @@ export default function App() {
           >
             📸 Study Feed — post & see friends
           </button>
-          <div style={{ display: "flex", gap: 6 }}>
+          <div className="side-trio">
             <button
               className={"btn sm ghost" + (tab === "bank" ? " active" : "")}
-              style={{ flex: 1, fontSize: 11 }}
               onClick={() => setTab("bank")}
             >
-              Question bank
+              Question<br />bank
             </button>
             <button
               className={"btn sm ghost" + (tab === "study" ? " active" : "")}
-              style={{ flex: 1, fontSize: 11 }}
               onClick={() => setTab("study")}
             >
-              Study timer
+              Study<br />timer
             </button>
             <button
               className={"btn sm ghost" + (tab === "papers" ? " active" : "")}
-              style={{ flex: 1, fontSize: 11 }}
               onClick={() => setTab("papers")}
             >
-              📄 Past papers
+              Past<br />papers
             </button>
           </div>
 
@@ -370,6 +409,7 @@ export default function App() {
                 Delete current unit
               </button>
             )}
+          </div>
           </div>
         </aside>
 
@@ -399,7 +439,21 @@ export default function App() {
 
           {tab === "papers" && <Papers />}
 
-          {tab !== "study" && tab !== "bank" && tab !== "feed" && tab !== "papers" && (
+          {tab === "account" && (
+            <>
+              {unitNav}
+              <Account
+                profile={profile}
+                onProfileUpdate={(updated) => setProfile((p) => ({ ...p, ...updated }))}
+                units={state.units}
+                activeUnitId={state.activeUnitId}
+                onDeleteUnit={(id) => deleteUnit(id, { confirm: false })}
+                onSelectUnit={(id) => persist({ ...state, activeUnitId: id })}
+              />
+            </>
+          )}
+
+          {tab !== "study" && tab !== "bank" && tab !== "feed" && tab !== "papers" && tab !== "account" && (
             !unit ? (
               <>
                 <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
@@ -414,23 +468,7 @@ export default function App() {
               </>
             ) : (
               <>
-                <nav className="tabs" role="tablist">
-                  {[
-                    ["materials", "Materials"],
-                    ["practice",  "Practice"],
-                    ["exam",      "Exam"],
-                    ["progress",  "Progress"],
-                    ["account",   "Account"],
-                  ].map(([id, label]) => (
-                    <button
-                      key={id} role="tab" aria-selected={tab === id}
-                      className={"tab" + (tab === id ? " active" : "")}
-                      onClick={() => setTab(id)}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </nav>
+                {unitNav}
 
                 {tab === "materials" && <Materials unit={unit} updateUnit={updateUnit} />}
                 {tab === "practice" && (
@@ -448,12 +486,6 @@ export default function App() {
                   />
                 )}
                 {tab === "progress" && <Progress unit={unit} weak={weakTopics(unit)} />}
-                {tab === "account" && (
-                  <Account
-                    profile={profile}
-                    onProfileUpdate={(updated) => setProfile((p) => ({ ...p, ...updated }))}
-                  />
-                )}
               </>
             )
           )}

@@ -38,25 +38,98 @@ body {
   display: grid;
   grid-template-columns: 250px 1fr;
   min-height: 100vh;
-  max-width: 1200px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
+  transition: grid-template-columns 180ms ease;
 }
-@media (max-width: 800px) {
-  .shell { grid-template-columns: 1fr; }
-  .sidebar { border-right: none; border-bottom: 2px solid var(--ink); }
-}
+.shell.sidebar-collapsed { grid-template-columns: 0 1fr; }
 
 .sidebar {
   border-right: 2px solid var(--ink);
-  padding: 28px 20px;
   background: rgba(251, 251, 248, 0.85);
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
+.shell.sidebar-collapsed .sidebar { border-right-width: 0; }
+/* fixed-width inner keeps content from reflowing while the column animates */
+.sidebar-inner { width: 250px; padding: 28px 20px 40px; }
+
+/* collapse toggle — rides the divider, Claude-desktop style */
+.sidebar-toggle {
+  position: fixed;
+  top: 16px;
+  left: 250px;
+  transform: translateX(-50%);
+  z-index: 60;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1.5px solid var(--ink);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  transition: left 180ms ease, background 120ms ease;
+}
+.sidebar-toggle:hover { background: #f0f1ec; }
+.shell.sidebar-collapsed .sidebar-toggle { left: 14px; transform: none; }
+
 .main {
   padding: 28px 36px 80px;
   background: rgba(251, 251, 248, 0.6);
+  max-width: 1180px;
+  min-width: 0;
+}
+.shell.sidebar-collapsed .main { padding-left: 56px; }
+
+/* the three secondary tabs — equal columns, never touching the divider */
+.side-trio {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.side-trio .btn {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 4px;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  line-height: 1.3;
+  white-space: normal;
+  text-align: center;
+  hyphens: none;
+}
+
+@media (max-width: 800px) {
+  .shell, .shell.sidebar-collapsed { grid-template-columns: 1fr; }
+  .sidebar {
+    position: static;
+    height: auto;
+    border-right: none;
+    border-bottom: 2px solid var(--ink);
+  }
+  .sidebar-inner { width: 100%; }
+  .shell.sidebar-collapsed .sidebar { display: none; }
+  .sidebar-toggle,
+  .shell.sidebar-collapsed .sidebar-toggle {
+    left: auto;
+    right: 12px;
+    top: 12px;
+    transform: none;
+  }
+  .main, .shell.sidebar-collapsed .main { max-width: none; padding-left: 36px; }
 }
 @media (max-width: 600px) {
-  .main { padding: 16px 14px 60px; }
+  .main, .shell.sidebar-collapsed .main { padding: 16px 14px 60px; }
 }
 
 /* ---------- brand ---------- */
@@ -122,6 +195,31 @@ body {
   font-size: 11px;
   opacity: 0.65;
   margin-left: 6px;
+}
+
+/* ---------- manage units (Account) ---------- */
+.unit-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.unit-row:last-of-type { border-bottom: none; }
+.unit-row .unit-meta { flex: 1; min-width: 0; }
+.unit-row .unit-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.unit-row .unit-sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--pencil);
+  margin: 2px 0 0;
 }
 
 /* ---------- exam booklet card ---------- */

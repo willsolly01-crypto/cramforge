@@ -136,7 +136,67 @@ function ProfileSection({ profile, onSaved }) {
   );
 }
 
-export default function Account({ profile, onProfileUpdate }) {
+function UnitsSection({ units, activeUnitId, onDeleteUnit, onSelectUnit }) {
+  const [confirming, setConfirming] = useState(null);
+  const list = Object.values(units || {});
+
+  return (
+    <div className="booklet" style={{ marginTop: 20 }}>
+      <div className="eyebrow" style={{ marginBottom: 12 }}>Your units</div>
+      {list.length === 0 ? (
+        <p className="small muted" style={{ margin: 0 }}>
+          No units yet — add one in the sidebar to start uploading materials.
+        </p>
+      ) : (
+        <>
+          <p className="small muted" style={{ marginTop: 0, marginBottom: 8 }}>
+            Deleting a unit removes its materials, questions, and progress. This can't be undone.
+          </p>
+          {list.map((u) => (
+            <div className="unit-row" key={u.id}>
+              <div className="unit-meta">
+                <p className="unit-title">
+                  {u.name}
+                  {u.id === activeUnitId && (
+                    <span className="eyebrow" style={{ marginLeft: 8, color: "var(--green)" }}>active</span>
+                  )}
+                </p>
+                <p className="unit-sub">
+                  {(u.materials || []).length} material{(u.materials || []).length === 1 ? "" : "s"}
+                </p>
+              </div>
+              {u.id !== activeUnitId && onSelectUnit && (
+                <button className="btn ghost sm" onClick={() => onSelectUnit(u.id)}>Open</button>
+              )}
+              {confirming === u.id ? (
+                <>
+                  <button
+                    className="btn sm"
+                    style={{ background: "var(--red)", borderColor: "var(--red)" }}
+                    onClick={() => { onDeleteUnit(u.id); setConfirming(null); }}
+                  >
+                    Confirm
+                  </button>
+                  <button className="btn ghost sm" onClick={() => setConfirming(null)}>Cancel</button>
+                </>
+              ) : (
+                <button
+                  className="btn ghost sm"
+                  style={{ color: "var(--red)", borderColor: "var(--red)" }}
+                  onClick={() => setConfirming(u.id)}
+                >
+                  Delete
+                </button>
+              )}
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
+
+export default function Account({ profile, onProfileUpdate, units, activeUnitId, onDeleteUnit, onSelectUnit }) {
   const [me,    setMe]    = useState(null);
   const [busy,  setBusy]  = useState(false);
   const [error, setError] = useState("");
@@ -194,6 +254,16 @@ export default function Account({ profile, onProfileUpdate }) {
             )}
             {error && <p className="error-text">{error}</p>}
           </div>
+
+          {/* Manage units */}
+          {onDeleteUnit && (
+            <UnitsSection
+              units={units}
+              activeUnitId={activeUnitId}
+              onDeleteUnit={onDeleteUnit}
+              onSelectUnit={onSelectUnit}
+            />
+          )}
 
           {/* Public profile settings */}
           <ProfileSection

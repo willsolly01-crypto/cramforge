@@ -62,6 +62,67 @@ async function loadPapers() {
   return data || [];
 }
 
+// ── ROW GROUPING ─────────────────────────────────────────────
+// CramForge papers group by set (Paper A, Paper B, …) so each set gets
+// its own row: Exam 1, Exam 2, Exam 3 … then Solutions. VCAA papers group
+// by year the same way. References (formula sheet, guide) sit last.
+const EXAM_RE = /Exam\s*(\d+)/i;
+
+// Position within a row: exams in numerical order, then solutions, then
+// anything else. Works for any number of exams without changes.
+function rankInGroup(r) {
+  const s = `${r.paper_type || ""} ${r.file_path || ""}`;
+  const m = s.match(EXAM_RE);
+  if (m) return parseInt(m[1], 10);
+  if (/solution/i.test(s)) return 90;
+  return 95;
+}
+
+// Which row a paper belongs to.
+function groupKey(r) {
+  if (isCramForge(r)) {
+    // "…/Methods-B-Exam2.pdf" -> "Paper B"
+    const m = String(r.file_path || "").match(/-([A-Z])-/);
+    return m ? `Paper ${m[1]}` : "Reference";
+  }
+  return String(r.year || "");
+}
+
+function buildGroups(list) {
+  const map = new Map();
+  for (const r of list) {
+    const k = groupKey(r);
+    if (!map.has(k)) map.set(k, []);
+    map.get(k).push(r);
+  }
+
+  const groups = [...map.entries()].map(([key, items]) => ({
+    key,
+    items: items.sort(
+      (a, b) =>
+        rankInGroup(a) - rankInGroup(b) ||
+        String(a.title || "").localeCompare(String(b.title || ""))
+    ),
+  }));
+
+  groups.sort((a, b) => {
+    // References always last; years newest first; sets A, B, C…
+    if (a.key === "Reference") return 1;
+    if (b.key === "Reference") return -1;
+    const na = Number(a.key);
+    const nb = Number(b.key);
+    if (!Number.isNaN(na) && !Number.isNaN(nb)) return nb - na;
+    return a.key.localeCompare(b.key);
+  });
+
+  return groups;
+}
+
+// Row width = the biggest set, clamped so cards never get too narrow.
+// Adding an Exam 3 widens every row to 4 automatically.
+const colsFor = (groups) =>
+  Math.max(2, Math.min(4, ...[Math.max(...groups.map((g) => g.items.length), 2)]));
+
 export default function Papers({ isPro = false }) {
   const [rows, setRows] = useState([]);
   const [subject, setSubject] = useState("");
@@ -109,24 +170,12 @@ export default function Papers({ isPro = false }) {
   );
 
   const vcaa = useMemo(
-    () =>
-      visible
-        .filter((r) => !isCramForge(r))
-        .sort(
-          (a, b) =>
-            (b.year || 0) - (a.year || 0) ||
-            String(a.paper_type || "").localeCompare(String(b.paper_type || ""))
-        ),
+    () => buildGroups(visible.filter((r) => !isCramForge(r))),
     [visible]
   );
 
   const cram = useMemo(
-    () =>
-      visible
-        .filter(isCramForge)
-        .sort((a, b) =>
-          String(a.title || "").localeCompare(String(b.title || ""))
-        ),
+    () => buildGroups(visible.filter(isCramForge)),
     [visible]
   );
 
@@ -205,53 +254,60 @@ function Column({ heading, sub, tone, note, papers, urlFor, isPro, empty }) {
       {papers.length === 0 ? (
         <p className="cfp-msg">{empty}</p>
       ) : (
-        <div className="cfp-grid">
-          {papers.map((p) => {
-            const locked = isLocked(p, isPro);
-            return (
-              <article
-                key={p.id}
-                className={"cfp-card" + (locked ? " cfp-card--locked" : "")}
-              >
-                <div className={locked ? "cfp-blur" : undefined}>
-                  <div className="cfp-cardtop">
-                    <span className="cfp-badge">{p.paper_type}</span>
-                    <span className="cfp-year">{p.year}</span>
-                  </div>
-                  <h3 className="cfp-title">{p.title}</h3>
-                </div>
-
-                {locked ? (
-                  <>
-                    <div className="cfp-lockwrap">
-                      <span className="cfp-lock">Pro only</span>
-                    </div>
-                    <button
-                      type="button"
-                      className="cfp-dl cfp-dl--locked"
-                      onClick={() => {
-                        window.dispatchEvent(new CustomEvent("cf:upgrade"));
-                        alert(
-                          "This paper is part of CramForge Pro.\n\nUpgrade in the Account tab to unlock every practice exam."
-                        );
-                      }}
-                    >
-                      Unlock with Pro
-                    </button>
-                  </>
-                ) : (
-                  <a
-                    className="cfp-dl"
-                    href={urlFor(p.file_path)}
-                    target="_blank"
-                    rel="noopener noreferrer"
+        <div className="cfp-groups">
+          {papers.map((group) => (
+            <div
+              key={group.key}
+              className="cfp-grid"
+              style={{ "--cols": colsFor(papers) }}
+            >
+              {group.items.map((p) => {
+                const locked = isLocked(p, isPro);
+                return (
+                  <article
+                    key={p.id}
+                    className={"cfp-card" + (locked ? " cfp-card--locked" : "")}
                   >
-                    Download PDF
-                  </a>
-                )}
-              </article>
-            );
-          })}
+                    <div className={locked ? "cfp-blur" : undefined}>
+                      <div className="cfp-cardtop">
+                        <span className="cfp-badge">{p.paper_type}</span>
+                        <span className="cfp-year">{p.year}</span>
+                      </div>
+                      <h3 className="cfp-title">{p.title}</h3>
+                    </div>
+
+                    {locked ? (
+                      <>
+                        <div className="cfp-lockwrap">
+                          <span className="cfp-lock">Pro only</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="cfp-dl cfp-dl--locked"
+                          onClick={() =>
+                            alert(
+                              "This paper is part of CramForge Pro.\n\nUpgrade in the Account tab to unlock every practice exam."
+                            )
+                          }
+                        >
+                          Unlock with Pro
+                        </button>
+                      </>
+                    ) : (
+                      <a
+                        className="cfp-dl"
+                        href={urlFor(p.file_path)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Download PDF
+                      </a>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          ))}
         </div>
       )}
     </section>
@@ -304,10 +360,13 @@ const CSS = `
   color: var(--coral); margin: 6px 0 0; min-height: 17px;
 }
 
-/* grid-auto-rows keeps every card the same height, so rows in the two
-   columns line up horizontally instead of drifting apart. */
+/* One grid per group = one row per paper set (or per year).
+   --cols is set inline from the largest set, so adding an Exam 3
+   widens every row automatically. */
+.cfp-groups { display: flex; flex-direction: column; gap: 16px; }
 .cfp-grid {
-  display: grid; grid-template-columns: 1fr 1fr;
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
   gap: 16px; grid-auto-rows: 232px;
 }
 @media (max-width: 760px) { .cfp-grid { grid-template-columns: 1fr; } }

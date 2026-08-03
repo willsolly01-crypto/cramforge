@@ -11,14 +11,16 @@ const isCramForge = (r) =>
   String(r.file_path || "").includes("/practice/");
 
 // ── WHAT'S BEHIND THE PAYWALL ────────────────────────────────
-// Free users get every VCAA paper, plus Exam 1 and the worked solutions
-// from each CramForge practice paper. Only the CramForge Exam 2 papers
-// are Pro-only. To lock more, add paper_type values to this list —
-// e.g. ["Practice Exam 2", "Solutions"] would also lock the solutions.
-const LOCKED_TYPES = ["Practice Exam 2"];
+// Free users get every VCAA paper, plus the whole of CramForge Practice
+// Paper A — Exam 1, Exam 2 and its worked solutions. Papers B and C, the
+// formula sheet and the guide are Pro-only. That's 3 free of 11.
+//
+// To also free the formula sheet and guide, change the test to:
+//   !(FREE_CRAMFORGE.test(title) || r.paper_type === "Reference")
+const FREE_CRAMFORGE = /Paper A\b/;
 
 const isLocked = (r, isPro) =>
-  !isPro && isCramForge(r) && LOCKED_TYPES.includes(String(r.paper_type || ""));
+  !isPro && isCramForge(r) && !FREE_CRAMFORGE.test(String(r.title || ""));
 
 export default function Papers({ isPro = false }) {
   const [rows, setRows] = useState([]);

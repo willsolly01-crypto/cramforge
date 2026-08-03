@@ -4,22 +4,41 @@ import { supabase } from "./supabase";
 const BUCKET = "past-papers";
 
 // A paper counts as a CramForge original if the `source` column says so,
-// OR if it lives in a /practice/ folder in the bucket.
+// OR if it lives in a /practice/ folder in the bucket. The second check means
+// this works even before add-source-column.sql has been run.
 const isCramForge = (r) =>
   String(r.source || "") === "CramForge" ||
   String(r.file_path || "").includes("/practice/");
 
 // ── WHAT'S BEHIND THE PAYWALL ────────────────────────────────
-const FREE_CRAMFORGE = /Methods-A-/;
+// Free users get every VCAA paper, plus the whole of CramForge Practice
+// Paper A — Exam 1, Exam 2 and its worked solutions. Papers B and C, the
+// formula sheet and the guide are Pro-only. That's 3 free of 11.
+//
+// Matched on file_path, NOT title, so renaming papers in the database
+// can never accidentally unlock them. Set A of every subject is the free
+// sample; add a subject here when its Paper A goes live.
+// To also free the formula sheet and guide, change the test to:
+//   !(FREE_CRAMFORGE.test(path) || r.paper_type === "Reference")
+const FREE_CRAMFORGE = /Methods-A-|Physics-A-|General-A-/;
 
 const isLocked = (r, isPro) =>
   !isPro && isCramForge(r) && !FREE_CRAMFORGE.test(String(r.file_path || ""));
 
+// The paper list must never come from the browser cache, otherwise newly
+// added papers only appear after a hard refresh. supabase-js gives no way
+// to set fetch options per query, so this hits the REST endpoint directly
+// with `cache: "no-store"` plus a cache-busting param, and falls back to
+// the client if the env vars aren't available for any reason.
 async function loadPapers() {
   const base = import.meta.env.VITE_SUPABASE_URL;
   const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
   if (base && key) {
+    // NOTE: no cache-busting query param here. PostgREST parses every
+    // unrecognised param as a column filter, so `_=123` returns a 400
+    // ("failed to parse filter"). `cache: "no-store"` is what actually
+    // stops the browser reusing a stale response.
     const res = await fetch(
       `${base}/rest/v1/past_papers?select=*&order=subject`,
       {
@@ -45,8 +64,13 @@ async function loadPapers() {
 }
 
 // ── ROW GROUPING ─────────────────────────────────────────────
+// CramForge papers group by set (Paper A, Paper B, …) so each set gets
+// its own row: Exam 1, Exam 2, Exam 3 … then Solutions. VCAA papers group
+// by year the same way. References (formula sheet, guide) sit last.
 const EXAM_RE = /Exam\s*(\d+)/i;
 
+// Position within a row: exams in numerical order, then solutions, then
+// anything else. Works for any number of exams without changes.
 function rankInGroup(r) {
   const s = `${r.paper_type || ""} ${r.file_path || ""}`;
   const m = s.match(EXAM_RE);
@@ -55,8 +79,10 @@ function rankInGroup(r) {
   return 95;
 }
 
+// Which row a paper belongs to.
 function groupKey(r) {
   if (isCramForge(r)) {
+    // "…/Methods-B-Exam2.pdf" -> "Paper B"
     const m = String(r.file_path || "").match(/-([A-Z])-/);
     return m ? `Paper ${m[1]}` : "Reference";
   }
@@ -81,6 +107,7 @@ function buildGroups(list) {
   }));
 
   groups.sort((a, b) => {
+    // References always last; years newest first; sets A, B, C…
     if (a.key === "Reference") return 1;
     if (b.key === "Reference") return -1;
     const na = Number(a.key);
@@ -92,6 +119,8 @@ function buildGroups(list) {
   return groups;
 }
 
+// Row width = the biggest set, clamped so cards never get too narrow.
+// Adding an Exam 3 widens every row to 4 automatically.
 const colsFor = (groups) =>
   Math.max(2, Math.min(4, ...[Math.max(...groups.map((g) => g.items.length), 2)]));
 
@@ -308,11 +337,10 @@ const CSS = `
   margin-top: 6px; color:#5A6472; word-break: break-word;
 }
 
-/* 1. Asymmetric column split: VCE takes 1fr, CramForge takes 1.6fr */
 .cfp-cols { display: grid; grid-template-columns: 1fr; gap: 34px; }
 @media (min-width: 1100px) {
-  .cfp-cols { grid-template-columns: 1fr 1.6fr; gap: 24px; }
-  .cfp-col--coral { border-left: 1.5px solid var(--line); padding-left: 24px; }
+  .cfp-cols { grid-template-columns: 1fr 1fr; gap: 30px; }
+  .cfp-col--coral { border-left: 1.5px solid var(--line); padding-left: 30px; }
 }
 
 .cfp-colhead { margin-bottom: 18px; min-height: 104px; }
@@ -333,105 +361,63 @@ const CSS = `
   color: var(--coral); margin: 6px 0 0; min-height: 17px;
 }
 
+/* One grid per group = one row per paper set (or per year).
+   --cols is set inline from the largest set, so adding an Exam 3
+   widens every row automatically. */
 .cfp-groups { display: flex; flex-direction: column; gap: 16px; }
-
-/* 2. Grid styling & flexible height */
 .cfp-grid {
   display: grid;
   grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
-  gap: 10px;
-  grid-auto-rows: minmax(220px, auto);
+  gap: 16px; grid-auto-rows: 232px;
 }
 @media (max-width: 760px) { .cfp-grid { grid-template-columns: 1fr; } }
 
-/* 3. Card constraints to ensure text fits inside 3 columns */
 .cfp-card {
-  position: relative; 
-  overflow: hidden;
-  border: 1.5px solid var(--navy); 
-  border-radius: 3px; 
-  background: #fff;
-  padding: 10px;
-  display: flex; 
-  flex-direction: column; 
-  gap: 8px;
-  box-sizing: border-box;
-  min-width: 0;
+  position: relative; overflow: hidden;
+  border: 1.5px solid var(--navy); border-radius: 3px; background:#fff;
+  padding: 16px; display: flex; flex-direction: column; gap: 12px;
 }
 .cfp-col--coral .cfp-card { border-color: var(--coral); }
-.cfp-card--locked { background: #FBFAF7; }
+.cfp-card--locked { background:#FBFAF7; }
 
 .cfp-blur { filter: blur(3.5px); opacity: .55; user-select: none; pointer-events: none; }
 
 .cfp-lockwrap { flex: 1; display: flex; align-items: center; justify-content: center; }
 .cfp-lock {
   font: 700 11px/1 "IBM Plex Mono", ui-monospace, monospace;
-  letter-spacing: .1em; 
-  text-transform: uppercase;
-  color: #fff; 
-  background: var(--coral);
-  padding: 7px 10px; 
-  border-radius: 2px;
+  letter-spacing: .1em; text-transform: uppercase;
+  color:#fff; background: var(--coral);
+  padding: 7px 12px; border-radius: 2px;
 }
 
-.cfp-cardtop { 
-  display: flex; 
-  align-items: center; 
-  justify-content: space-between; 
-  gap: 4px; 
-  min-width: 0;
-}
+.cfp-cardtop { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .cfp-badge {
-  font: 700 10px/1.2 "IBM Plex Mono", ui-monospace, monospace;
-  letter-spacing: .03em; 
-  color: var(--coral); 
-  background: rgba(200,53,60,.10);
-  padding: 4px 6px; 
-  border-radius: 2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font: 700 11px/1.2 "IBM Plex Mono", ui-monospace, monospace;
+  letter-spacing: .05em; color: var(--coral); background: rgba(200,53,60,.10);
+  padding: 6px 9px; border-radius: 2px;
 }
 .cfp-year {
-  font: 700 13px/1 "IBM Plex Mono", ui-monospace, monospace;
-  color: var(--navy); 
-  flex-shrink: 0;
+  font: 700 14px/1 "IBM Plex Mono", ui-monospace, monospace;
+  color: var(--navy); flex-shrink: 0;
 }
 
 .cfp-title {
-  font: 400 13.5px/1.35 Inter, system-ui, sans-serif;
-  color: var(--ink); 
-  margin: 6px 0 0;
-  display: -webkit-box; 
-  -webkit-line-clamp: 3; 
-  -webkit-box-orient: vertical;
+  font: 400 15px/1.4 Inter, system-ui, sans-serif;
+  color: var(--ink); margin: 10px 0 0;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
   overflow: hidden;
-  overflow-wrap: break-word;
-  word-break: break-word;
 }
 
 .cfp-dl {
-  display: block; 
-  text-align: center; 
-  margin-top: auto;
-  font: 700 11px/1 "IBM Plex Mono", ui-monospace, monospace;
-  letter-spacing: .05em; 
-  text-transform: uppercase;
-  color: var(--navy); 
-  text-decoration: underline;
-  padding: 10px 4px; 
-  border: 1.5px solid var(--navy); 
-  border-radius: 2px;
-  background: none; 
-  width: 100%; 
-  cursor: pointer;
-  box-sizing: border-box;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  display: block; text-align: center; margin-top: auto;
+  font: 700 12px/1 "IBM Plex Mono", ui-monospace, monospace;
+  letter-spacing: .08em; text-transform: uppercase;
+  color: var(--navy); text-decoration: underline;
+  padding: 12px; border: 1.5px solid var(--navy); border-radius: 2px;
+  background: none; width: 100%; cursor: pointer;
 }
-.cfp-dl:hover { background: var(--navy); color: #fff; }
+.cfp-dl:hover { background: var(--navy); color:#fff; }
 .cfp-col--coral .cfp-dl { color: var(--coral); border-color: var(--coral); }
-.cfp-col--coral .cfp-dl:hover { background: var(--coral); color: #fff; }
+.cfp-col--coral .cfp-dl:hover { background: var(--coral); color:#fff; }
 .cfp-dl--locked { text-decoration: none; }
 `;

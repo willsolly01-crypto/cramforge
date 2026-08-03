@@ -21,22 +21,14 @@ export default function Papers() {
     let cancelled = false;
     async function load() {
       setLoading(true);
-      // NOTE: sorting is done client-side below rather than via chained
-      // .order() calls — chaining two .order()s caused supabase-js to send
-      // a URL-encoded comma between columns, which Supabase's API silently
-      // returned zero rows for (200 status, empty body). Single-request,
-      // no server-side order = reliable.
-      const { data, error } = await supabase.from("past_papers").select("*");
+      const { data, error } = await supabase
+        .from("past_papers")
+        .select("*")
+        .order("subject", { ascending: true })
+        .order("year", { ascending: false });
       if (cancelled) return;
-      if (error) {
-        setError(error.message);
-      } else {
-        const sorted = (data || []).slice().sort((a, b) => {
-          if (a.subject !== b.subject) return a.subject.localeCompare(b.subject);
-          return b.year - a.year; // newest year first within each subject
-        });
-        setPapers(sorted);
-      }
+      if (error) setError(error.message);
+      else setPapers(data || []);
       setLoading(false);
     }
     load();

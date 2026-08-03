@@ -24,6 +24,39 @@ const FREE_CRAMFORGE = /Methods-A-/;
 const isLocked = (r, isPro) =>
   !isPro && isCramForge(r) && !FREE_CRAMFORGE.test(String(r.file_path || ""));
 
+// The paper list must never come from the browser cache, otherwise newly
+// added papers only appear after a hard refresh. supabase-js gives no way
+// to set fetch options per query, so this hits the REST endpoint directly
+// with `cache: "no-store"` plus a cache-busting param, and falls back to
+// the client if the env vars aren't available for any reason.
+async function loadPapers() {
+  const base = import.meta.env.VITE_SUPABASE_URL;
+  const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+  if (base && key) {
+    const res = await fetch(
+      `${base}/rest/v1/past_papers?select=*&order=subject&_=${Date.now()}`,
+      {
+        headers: {
+          apikey: key,
+          Authorization: `Bearer ${key}`,
+          "Cache-Control": "no-cache",
+        },
+        cache: "no-store",
+      }
+    );
+    if (!res.ok) throw new Error(`${res.status} — ${await res.text()}`);
+    return await res.json();
+  }
+
+  const { data, error } = await supabase
+    .from("past_papers")
+    .select("*")
+    .order("subject");
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
 export default function Papers({ isPro = false }) {
   const [rows, setRows] = useState([]);
   const [subject, setSubject] = useState("");
@@ -34,34 +67,25 @@ export default function Papers({ isPro = false }) {
     let cancelled = false;
 
     (async () => {
-      // select("*") on purpose — naming columns explicitly breaks the whole
-      // query if one of them doesn't exist yet.
-      // Single .order() on purpose — chaining two .order() calls in supabase-js
-      // encodes the separator as %2C and silently returns zero rows with a 200.
-      const { data, error } = await supabase
-        .from("past_papers")
-        .select("*")
-        .order("subject");
+      try {
+        const list = await loadPapers();
+        if (cancelled) return;
 
-      if (cancelled) return;
+        setRows(list);
 
-      if (error) {
-        console.error("[Papers] load failed:", error);
-        setError(error.message || "Unknown error");
+        const subjects = [...new Set(list.map((r) => r.subject))].sort();
+        setSubject(
+          subjects.find((s) => s.toLowerCase().includes("methods")) ||
+            subjects[0] ||
+            ""
+        );
         setLoading(false);
-        return;
+      } catch (e) {
+        if (cancelled) return;
+        console.error("[Papers] load failed:", e);
+        setError(e.message || "Unknown error");
+        setLoading(false);
       }
-
-      const list = data || [];
-      setRows(list);
-
-      const subjects = [...new Set(list.map((r) => r.subject))].sort();
-      setSubject(
-        subjects.find((s) => s.toLowerCase().includes("methods")) ||
-          subjects[0] ||
-          ""
-      );
-      setLoading(false);
     })();
 
     return () => {

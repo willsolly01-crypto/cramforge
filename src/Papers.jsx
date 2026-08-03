@@ -34,13 +34,18 @@ async function loadPapers() {
   const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
   if (base && key) {
+    // NOTE: no cache-busting query param here. PostgREST parses every
+    // unrecognised param as a column filter, so `_=123` returns a 400
+    // ("failed to parse filter"). `cache: "no-store"` is what actually
+    // stops the browser reusing a stale response.
     const res = await fetch(
-      `${base}/rest/v1/past_papers?select=*&order=subject&_=${Date.now()}`,
+      `${base}/rest/v1/past_papers?select=*&order=subject`,
       {
         headers: {
           apikey: key,
           Authorization: `Bearer ${key}`,
           "Cache-Control": "no-cache",
+          Pragma: "no-cache",
         },
         cache: "no-store",
       }

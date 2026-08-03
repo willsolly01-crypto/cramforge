@@ -1,183 +1,268 @@
-import { useEffect, useState, useMemo } from "react";
-import { createClient } from "@supabase/supabase-js";
-
-// Reuses the same public env vars your app already has in Vercel.
-// If you already export a shared client elsewhere (e.g. src/supabase.js),
-// swap this out for that import instead — this is just self-contained by default.
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "./supabase";
 
 const BUCKET = "past-papers";
 
+// A paper counts as a CramForge original if the `source` column says so,
+// OR if it lives in a /practice/ folder in the bucket. The second check means
+// this works even before add-source-column.sql has been run.
+const isCramForge = (r) =>
+  String(r.source || "") === "CramForge" ||
+  String(r.file_path || "").includes("/practice/");
+
 export default function Papers() {
-  const [papers, setPapers] = useState([]);
+  const [rows, setRows] = useState([]);
+  const [subject, setSubject] = useState("");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [subjectFilter, setSubjectFilter] = useState("all");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
-    async function load() {
-      setLoading(true);
+
+    (async () => {
+      // select("*") on purpose — naming columns explicitly breaks the whole
+      // query if one of them doesn't exist yet.
+      // Single .order() on purpose — chaining two .order() calls in supabase-js
+      // encodes the separator as %2C and silently returns zero rows with a 200.
       const { data, error } = await supabase
         .from("past_papers")
         .select("*")
-        .order("subject", { ascending: true })
-        .order("year", { ascending: false });
+        .order("subject");
+
       if (cancelled) return;
-      if (error) setError(error.message);
-      else setPapers(data || []);
+
+      if (error) {
+        console.error("[Papers] load failed:", error);
+        setError(error.message || "Unknown error");
+        setLoading(false);
+        return;
+      }
+
+      const list = data || [];
+      setRows(list);
+
+      const subjects = [...new Set(list.map((r) => r.subject))].sort();
+      setSubject(
+        subjects.find((s) => s.toLowerCase().includes("methods")) ||
+          subjects[0] ||
+          ""
+      );
       setLoading(false);
-    }
-    load();
+    })();
+
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const subjects = useMemo(() => {
-    const s = new Set(papers.map((p) => p.subject));
-    return ["all", ...Array.from(s).sort()];
-  }, [papers]);
+  const subjects = useMemo(
+    () => [...new Set(rows.map((r) => r.subject))].sort(),
+    [rows]
+  );
 
-  const filtered = useMemo(() => {
-    if (subjectFilter === "all") return papers;
-    return papers.filter((p) => p.subject === subjectFilter);
-  }, [papers, subjectFilter]);
+  const visible = useMemo(
+    () => rows.filter((r) => r.subject === subject),
+    [rows, subject]
+  );
 
-  const grouped = useMemo(() => {
-    const g = {};
-    for (const p of filtered) {
-      if (!g[p.subject]) g[p.subject] = [];
-      g[p.subject].push(p);
-    }
-    return g;
-  }, [filtered]);
+  const vcaa = useMemo(
+    () =>
+      visible
+        .filter((r) => !isCramForge(r))
+        .sort(
+          (a, b) =>
+            (b.year || 0) - (a.year || 0) ||
+            String(a.paper_type || "").localeCompare(String(b.paper_type || ""))
+        ),
+    [visible]
+  );
 
-  function downloadUrl(path) {
-    const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
-    return data.publicUrl;
-  }
+  const cram = useMemo(
+    () =>
+      visible
+        .filter(isCramForge)
+        .sort((a, b) =>
+          String(a.title || "").localeCompare(String(b.title || ""))
+        ),
+    [visible]
+  );
 
-  if (loading) {
-    return <p className="small muted">Loading papers…</p>;
-  }
-
-  if (error) {
-    return <p className="small" style={{ color: "var(--red, #D85A30)" }}>Couldn't load papers: {error}</p>;
-  }
+  const urlFor = (path) =>
+    supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
 
   return (
-    <div style={{ maxWidth: 880 }}>
-      <h2 className="h-display">Past exam papers</h2>
-      <p className="small muted" style={{ marginBottom: 20 }}>
-        Real VCE exam papers, organised by subject — free to download.
-      </p>
+    <div className="cfp">
+      <style>{CSS}</style>
 
-      {/* Constrain the select's own width instead of letting the global
-          full-width form-control style stretch it across the whole page */}
-      <div style={{ maxWidth: 220, marginBottom: 28 }}>
-        <select
-          value={subjectFilter}
-          onChange={(e) => setSubjectFilter(e.target.value)}
-        >
-          {subjects.map((s) => (
-            <option key={s} value={s}>
-              {s === "all" ? "All subjects" : s}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {papers.length === 0 && (
-        <div className="notice">
-          No papers uploaded yet — check back soon. New papers are added regularly.
+      {subjects.length > 0 && (
+        <div className="cfp-toolbar">
+          <select
+            className="cfp-select"
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+          >
+            {subjects.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
         </div>
       )}
 
-      {Object.keys(grouped)
-        .sort()
-        .map((subject) => (
-          <div key={subject} style={{ marginBottom: 32 }}>
-            <h3
-              style={{
-                fontFamily: "var(--display, 'Spectral', serif)",
-                fontSize: 18,
-                fontWeight: 700,
-                color: "var(--red, #D85A30)",
-                borderBottom: "2px solid var(--ink-soft, #26215C)",
-                paddingBottom: 6,
-                marginBottom: 14,
-              }}
-            >
-              {subject}
-            </h3>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-                gap: 12,
-              }}
-            >
-              {grouped[subject].map((p) => (
-                <div
-                  key={p.id}
-                  style={{
-                    background: "#fff",
-                    border: "2px solid var(--ink, #26215C)",
-                    borderRadius: 6,
-                    padding: 14,
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 8,
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span
-                      style={{
-                        fontFamily: "var(--mono, 'IBM Plex Mono', monospace)",
-                        fontSize: 11,
-                        fontWeight: 700,
-                        letterSpacing: "0.04em",
-                        color: "var(--red, #D85A30)",
-                        background: "rgba(216, 90, 48, 0.1)",
-                        padding: "3px 8px",
-                        borderRadius: 4,
-                      }}
-                    >
-                      {p.paper_type}
-                    </span>
-                    <span
-                      style={{
-                        fontFamily: "var(--mono, 'IBM Plex Mono', monospace)",
-                        fontSize: 13,
-                        fontWeight: 700,
-                        color: "var(--ink-soft, #5F5E5A)",
-                      }}
-                    >
-                      {p.year}
-                    </span>
-                  </div>
-                  <p style={{ fontSize: 14, color: "var(--ink, #26215C)", margin: "2px 0 4px", flexGrow: 1 }}>
-                    {p.title}
-                  </p>
-                  <a
-                    className="btn sm ghost"
-                    href={downloadUrl(p.file_path)}
-                    download
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ textAlign: "center" }}
-                  >
-                    Download PDF
-                  </a>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
+      {loading && <p className="cfp-msg">Loading papers…</p>}
+
+      {error && (
+        <div className="cfp-errbox">
+          <strong>Couldn’t load papers.</strong>
+          <div className="cfp-errdetail">{error}</div>
+        </div>
+      )}
+
+      {!loading && !error && rows.length === 0 && (
+        <p className="cfp-msg">No papers have been added yet.</p>
+      )}
+
+      {!loading && !error && rows.length > 0 && (
+        <div className="cfp-cols">
+          <Column
+            heading="VCE"
+            sub="Official VCAA past examinations"
+            tone="navy"
+            papers={vcaa}
+            urlFor={urlFor}
+            empty="No VCAA papers for this subject yet."
+          />
+          <Column
+            heading="CramForge"
+            sub="Original practice exams written by CramForge"
+            tone="coral"
+            note="Not VCAA papers and not endorsed by the VCAA."
+            papers={cram}
+            urlFor={urlFor}
+            empty="No CramForge practice papers for this subject yet."
+          />
+        </div>
+      )}
     </div>
   );
 }
+
+function Column({ heading, sub, tone, note, papers, urlFor, empty }) {
+  return (
+    <section className={`cfp-col cfp-col--${tone}`}>
+      <header className="cfp-colhead">
+        <h2 className="cfp-h2">{heading}</h2>
+        <p className="cfp-sub">{sub}</p>
+        {note && <p className="cfp-note">{note}</p>}
+      </header>
+
+      {papers.length === 0 ? (
+        <p className="cfp-msg">{empty}</p>
+      ) : (
+        <div className="cfp-grid">
+          {papers.map((p) => (
+            <article key={p.id} className="cfp-card">
+              <div className="cfp-cardtop">
+                <span className="cfp-badge">{p.paper_type}</span>
+                <span className="cfp-year">{p.year}</span>
+              </div>
+              <h3 className="cfp-title">{p.title}</h3>
+              <a
+                className="cfp-dl"
+                href={urlFor(p.file_path)}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Download PDF
+              </a>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+const CSS = `
+.cfp { --navy:#152540; --coral:#C8353C; --line:#D8DDE5; --ink:#1B2433; }
+
+.cfp-toolbar { margin-bottom: 22px; }
+.cfp-select {
+  font: 500 15px/1.2 Inter, system-ui, sans-serif;
+  color: var(--ink); padding: 12px 16px; min-width: 280px;
+  background:#fff; border: 1.5px solid var(--navy); border-radius: 3px;
+}
+
+.cfp-msg { font: 400 14px/1.5 Inter, system-ui, sans-serif; color:#5A6472; }
+
+.cfp-errbox {
+  font: 400 14px/1.5 Inter, system-ui, sans-serif;
+  border: 1.5px solid var(--coral); border-radius: 3px;
+  padding: 14px 16px; color: var(--coral); background: rgba(200,53,60,.06);
+}
+.cfp-errdetail {
+  font: 400 12px/1.5 "IBM Plex Mono", ui-monospace, monospace;
+  margin-top: 6px; color:#5A6472; word-break: break-word;
+}
+
+.cfp-cols { display: grid; grid-template-columns: 1fr; gap: 34px; }
+@media (min-width: 1100px) {
+  .cfp-cols { grid-template-columns: 1fr 1fr; gap: 30px; }
+  .cfp-col--coral { border-left: 1.5px solid var(--line); padding-left: 30px; }
+}
+
+.cfp-colhead { margin-bottom: 18px; }
+.cfp-h2 {
+  font: 700 26px/1.2 Spectral, Georgia, serif;
+  margin: 0; padding-bottom: 8px; border-bottom: 2px solid currentColor;
+}
+.cfp-col--navy  .cfp-h2 { color: var(--navy); }
+.cfp-col--coral .cfp-h2 { color: var(--coral); }
+
+.cfp-sub {
+  font: 500 11px/1.4 "IBM Plex Mono", ui-monospace, monospace;
+  letter-spacing: .08em; text-transform: uppercase;
+  color:#5A6472; margin: 8px 0 0;
+}
+.cfp-note {
+  font: 400 12px/1.45 Inter, system-ui, sans-serif;
+  color: var(--coral); margin: 6px 0 0;
+}
+
+.cfp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 760px) { .cfp-grid { grid-template-columns: 1fr; } }
+
+.cfp-card {
+  border: 1.5px solid var(--navy); border-radius: 3px; background:#fff;
+  padding: 16px; display: flex; flex-direction: column; gap: 12px;
+}
+.cfp-col--coral .cfp-card { border-color: var(--coral); }
+
+.cfp-cardtop { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.cfp-badge {
+  font: 700 11px/1.2 "IBM Plex Mono", ui-monospace, monospace;
+  letter-spacing: .05em; color: var(--coral); background: rgba(200,53,60,.10);
+  padding: 6px 9px; border-radius: 2px;
+}
+.cfp-year {
+  font: 700 14px/1 "IBM Plex Mono", ui-monospace, monospace;
+  color: var(--navy); flex-shrink: 0;
+}
+
+.cfp-title {
+  font: 400 15px/1.4 Inter, system-ui, sans-serif;
+  color: var(--ink); margin: 0; flex: 1;
+}
+
+.cfp-dl {
+  display: block; text-align: center;
+  font: 700 12px/1 "IBM Plex Mono", ui-monospace, monospace;
+  letter-spacing: .08em; text-transform: uppercase;
+  color: var(--navy); text-decoration: underline;
+  padding: 12px; border: 1.5px solid var(--navy); border-radius: 2px;
+}
+.cfp-dl:hover { background: var(--navy); color:#fff; }
+.cfp-col--coral .cfp-dl { color: var(--coral); border-color: var(--coral); }
+.cfp-col--coral .cfp-dl:hover { background: var(--coral); color:#fff; }
+`;

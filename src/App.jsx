@@ -18,6 +18,20 @@ import StudyFeed   from "./StudyFeed.jsx";
 import Papers      from "./Papers.jsx";
 import OnboardingTour, { shouldShowOnboarding } from "./OnboardingTour.jsx";
 import { supabase } from "./supabase.js";
+
+// Keeps the three-across sidebar buttons from overflowing their boxes:
+// the longest label ("Question bank") was spilling past the border.
+const TRIO_BTN = {
+  minWidth: 0,
+  width: "100%",
+  padding: "10px 4px",
+  fontSize: 11,
+  lineHeight: 1.3,
+  whiteSpace: "normal",
+  overflowWrap: "anywhere",
+  textAlign: "center",
+  boxSizing: "border-box",
+};
 import { activateSession, startCheckout, syncState, loadServerState } from "./api.js";
 
 // ── URL param routing (checked once at startup) ────────────────────────────
@@ -372,44 +386,27 @@ export default function App() {
           <div className="side-trio">
             <button
               className={"btn sm ghost" + (tab === "bank" ? " active" : "")}
+              style={TRIO_BTN}
               onClick={() => setTab("bank")}
             >
               Question<br />bank
             </button>
             <button
               className={"btn sm ghost" + (tab === "study" ? " active" : "")}
+              style={TRIO_BTN}
               onClick={() => setTab("study")}
             >
               Study<br />timer
             </button>
             <button
               className={"btn sm ghost" + (tab === "papers" ? " active" : "")}
+              style={TRIO_BTN}
               onClick={() => setTab("papers")}
             >
               Past<br />papers
             </button>
           </div>
 
-          {/* Data + unit management */}
-          <div style={{ marginTop: 28 }}>
-            <div className="eyebrow" style={{ marginBottom: 10 }}>Data</div>
-            <button className="btn sm ghost" style={{ width: "100%", marginBottom: 6 }} onClick={() => exportBackup(state)}>
-              Export backup
-            </button>
-            <label className="btn sm ghost" style={{ width: "100%", display: "block", textAlign: "center" }}>
-              Restore backup
-              <input type="file" accept=".json" onChange={importBackup} style={{ display: "none" }} />
-            </label>
-            {unit && (
-              <button
-                className="btn sm ghost"
-                style={{ width: "100%", marginTop: 14, color: "var(--red)", borderColor: "var(--red)" }}
-                onClick={() => deleteUnit(unit.id)}
-              >
-                Delete current unit
-              </button>
-            )}
-          </div>
           </div>
         </aside>
 
@@ -450,6 +447,30 @@ export default function App() {
                 onDeleteUnit={(id) => deleteUnit(id, { confirm: false })}
                 onSelectUnit={(id) => persist({ ...state, activeUnitId: id })}
               />
+
+              {/* Data & backups — moved here from the sidebar */}
+              <section style={{ marginTop: 34 }}>
+                <div className="eyebrow" style={{ marginBottom: 10 }}>Data &amp; backups</div>
+                <p className="small muted" style={{ marginBottom: 14, maxWidth: 560 }}>
+                  Export a copy of your units, question history and progress as a file.
+                  Keep it somewhere safe — it&rsquo;s how you move your data to another
+                  device, and how you get it back if something goes wrong.
+                </p>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <button className="btn sm ghost" onClick={() => exportBackup(state)}>
+                    Export backup
+                  </button>
+                  <label className="btn sm ghost" style={{ cursor: "pointer" }}>
+                    Restore backup
+                    <input
+                      type="file"
+                      accept=".json"
+                      onChange={importBackup}
+                      style={{ display: "none" }}
+                    />
+                  </label>
+                </div>
+              </section>
             </>
           )}
 

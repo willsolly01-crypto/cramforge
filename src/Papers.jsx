@@ -320,7 +320,7 @@ const CSS = `
 .cfp-toolbar { margin-bottom: 22px; }
 .cfp-select {
   font: 500 15px/1.2 Inter, system-ui, sans-serif;
-  color: var(--ink); padding: 12px 16px; min-width: 280px;
+  color: var(--ink); padding: 12px 16px; min-width: 400px;
   background:#fff; border: 1.5px solid var(--navy); border-radius: 3px;
 }
 
@@ -335,88 +335,101 @@ const CSS = `
   font: 400 12px/1.5 "IBM Plex Mono", ui-monospace, monospace;
   margin-top: 6px; color:#5A6472; word-break: break-word;
 }
-
-.cfp-cols { display: grid; grid-template-columns: 1fr; gap: 34px; }
-@media (min-width: 1100px) {
-  .cfp-cols { grid-template-columns: 1fr 1fr; gap: 30px; }
-  .cfp-col--coral { border-left: 1.5px solid var(--line); padding-left: 30px; }
-}
-
-.cfp-colhead { margin-bottom: 18px; min-height: 104px; }
-.cfp-h2 {
-  font: 700 26px/1.2 Spectral, Georgia, serif;
-  margin: 0; padding-bottom: 8px; border-bottom: 2px solid currentColor;
-}
-.cfp-col--navy  .cfp-h2 { color: var(--navy); }
-.cfp-col--coral .cfp-h2 { color: var(--coral); }
-
-.cfp-sub {
-  font: 500 11px/1.4 "IBM Plex Mono", ui-monospace, monospace;
-  letter-spacing: .08em; text-transform: uppercase;
-  color:#5A6472; margin: 8px 0 0;
-}
-.cfp-note {
-  font: 400 12px/1.45 Inter, system-ui, sans-serif;
-  color: var(--coral); margin: 6px 0 0; min-height: 17px;
-}
-
-/* One grid per group = one row per paper set (or per year).
-   --cols is set inline from the largest set, so adding an Exam 3
-   widens every row automatically. */
-.cfp-groups { display: flex; flex-direction: column; gap: 16px; }
 .cfp-grid {
   display: grid;
   grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
-  gap: 16px; grid-auto-rows: 232px;
+  gap: 12px;
+  grid-auto-rows: minmax(232px, auto);
 }
 @media (max-width: 760px) { .cfp-grid { grid-template-columns: 1fr; } }
 
 .cfp-card {
-  position: relative; overflow: hidden;
-  border: 1.5px solid var(--navy); border-radius: 3px; background:#fff;
-  padding: 16px; display: flex; flex-direction: column; gap: 12px;
+  position: relative; 
+  overflow: hidden;
+  border: 1.5px solid var(--navy); 
+  border-radius: 3px; 
+  background: #fff;
+  padding: 12px;
+  display: flex; 
+  flex-direction: column; 
+  gap: 10px;
+  box-sizing: border-box;
+  min-width: 0;
 }
 .cfp-col--coral .cfp-card { border-color: var(--coral); }
-.cfp-card--locked { background:#FBFAF7; }
+.cfp-card--locked { background: #FBFAF7; }
 
 .cfp-blur { filter: blur(3.5px); opacity: .55; user-select: none; pointer-events: none; }
 
 .cfp-lockwrap { flex: 1; display: flex; align-items: center; justify-content: center; }
 .cfp-lock {
   font: 700 11px/1 "IBM Plex Mono", ui-monospace, monospace;
-  letter-spacing: .1em; text-transform: uppercase;
-  color:#fff; background: var(--coral);
-  padding: 7px 12px; border-radius: 2px;
+  letter-spacing: .1em; 
+  text-transform: uppercase;
+  color: #fff; 
+  background: var(--coral);
+  padding: 7px 12px; 
+  border-radius: 2px;
 }
 
-.cfp-cardtop { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.cfp-cardtop { 
+  display: flex; 
+  align-items: center; 
+  justify-content: space-between; 
+  gap: 6px; 
+  min-width: 0;
+}
 .cfp-badge {
-  font: 700 11px/1.2 "IBM Plex Mono", ui-monospace, monospace;
-  letter-spacing: .05em; color: var(--coral); background: rgba(200,53,60,.10);
-  padding: 6px 9px; border-radius: 2px;
+  font: 700 10px/1.2 "IBM Plex Mono", ui-monospace, monospace;
+  letter-spacing: .03em; 
+  color: var(--coral); 
+  background: rgba(200,53,60,.10);
+  padding: 4px 6px; 
+  border-radius: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .cfp-year {
   font: 700 14px/1 "IBM Plex Mono", ui-monospace, monospace;
-  color: var(--navy); flex-shrink: 0;
+  color: var(--navy); 
+  flex-shrink: 0;
 }
 
 .cfp-title {
-  font: 400 15px/1.4 Inter, system-ui, sans-serif;
-  color: var(--ink); margin: 10px 0 0;
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  font: 400 14px/1.35 Inter, system-ui, sans-serif;
+  color: var(--ink); 
+  margin: 8px 0 0;
+  display: -webkit-box; 
+  -webkit-line-clamp: 3; 
+  -webkit-box-orient: vertical;
   overflow: hidden;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .cfp-dl {
-  display: block; text-align: center; margin-top: auto;
-  font: 700 12px/1 "IBM Plex Mono", ui-monospace, monospace;
-  letter-spacing: .08em; text-transform: uppercase;
-  color: var(--navy); text-decoration: underline;
-  padding: 12px; border: 1.5px solid var(--navy); border-radius: 2px;
-  background: none; width: 100%; cursor: pointer;
+  display: block; 
+  text-align: center; 
+  margin-top: auto;
+  font: 700 11px/1 "IBM Plex Mono", ui-monospace, monospace;
+  letter-spacing: .05em; 
+  text-transform: uppercase;
+  color: var(--navy); 
+  text-decoration: underline;
+  padding: 10px 6px; 
+  border: 1.5px solid var(--navy); 
+  border-radius: 2px;
+  background: none; 
+  width: 100%; 
+  cursor: pointer;
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.cfp-dl:hover { background: var(--navy); color:#fff; }
+.cfp-dl:hover { background: var(--navy); color: #fff; }
 .cfp-col--coral .cfp-dl { color: var(--coral); border-color: var(--coral); }
-.cfp-col--coral .cfp-dl:hover { background: var(--coral); color:#fff; }
+.cfp-col--coral .cfp-dl:hover { background: var(--coral); color: #fff; }
 .cfp-dl--locked { text-decoration: none; }
 `;

@@ -329,10 +329,9 @@ export default function App() {
             <button
               key={u.id}
               className={"unit-btn" + (state.activeUnitId === u.id ? " active" : "")}
-              onClick={() => { persist({ ...state, activeUnitId: u.id }); if (tab === "study" || tab === "bank" || tab === "account") setTab("materials"); }}
+              onClick={() => { persist({ ...state, activeUnitId: u.id }); if (tab === "study" || tab === "bank" || tab === "account" || tab === "papers" || tab === "feed") setTab("materials"); }}
             >
               {u.name}
-              <span className="count">{(u.materials || []).length} mat.</span>
             </button>
           ))}
 
@@ -407,6 +406,14 @@ export default function App() {
             </button>
           </div>
 
+          <button
+            className={"btn sm ghost" + (tab === "account" ? " active" : "")}
+            style={{ width: "100%", marginTop: 10 }}
+            onClick={() => setTab("account")}
+          >
+            Account
+          </button>
+
           </div>
         </aside>
 
@@ -434,7 +441,12 @@ export default function App() {
             <StudyFeed unitNames={Object.values(state.units || {}).map((u) => u.name)} />
           )}
 
-          {tab === "papers" && <Papers />}
+          {tab === "papers" && (
+            <>
+              {unitNav}
+              <Papers isPro={isPro} />
+            </>
+          )}
 
           {tab === "account" && (
             <>

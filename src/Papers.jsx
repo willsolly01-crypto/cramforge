@@ -10,7 +10,17 @@ const isCramForge = (r) =>
   String(r.source || "") === "CramForge" ||
   String(r.file_path || "").includes("/practice/");
 
-export default function Papers() {
+// ── WHAT'S BEHIND THE PAYWALL ────────────────────────────────
+// Free users get every VCAA paper, plus Exam 1 and the worked solutions
+// from each CramForge practice paper. Only the CramForge Exam 2 papers
+// are Pro-only. To lock more, add paper_type values to this list —
+// e.g. ["Practice Exam 2", "Solutions"] would also lock the solutions.
+const LOCKED_TYPES = ["Practice Exam 2"];
+
+const isLocked = (r, isPro) =>
+  !isPro && isCramForge(r) && LOCKED_TYPES.includes(String(r.paper_type || ""));
+
+export default function Papers({ isPro = false }) {
   const [rows, setRows] = useState([]);
   const [subject, setSubject] = useState("");
   const [loading, setLoading] = useState(true);
@@ -131,6 +141,7 @@ export default function Papers() {
             tone="navy"
             papers={vcaa}
             urlFor={urlFor}
+            isPro={isPro}
             empty="No VCAA papers for this subject yet."
           />
           <Column
@@ -140,6 +151,7 @@ export default function Papers() {
             note="Not VCAA papers and not endorsed by the VCAA."
             papers={cram}
             urlFor={urlFor}
+            isPro={isPro}
             empty="No CramForge practice papers for this subject yet."
           />
         </div>
@@ -148,36 +160,65 @@ export default function Papers() {
   );
 }
 
-function Column({ heading, sub, tone, note, papers, urlFor, empty }) {
+function Column({ heading, sub, tone, note, papers, urlFor, isPro, empty }) {
   return (
     <section className={`cfp-col cfp-col--${tone}`}>
       <header className="cfp-colhead">
         <h2 className="cfp-h2">{heading}</h2>
         <p className="cfp-sub">{sub}</p>
-        {note && <p className="cfp-note">{note}</p>}
+        <p className="cfp-note">{note || "\u00A0"}</p>
       </header>
 
       {papers.length === 0 ? (
         <p className="cfp-msg">{empty}</p>
       ) : (
         <div className="cfp-grid">
-          {papers.map((p) => (
-            <article key={p.id} className="cfp-card">
-              <div className="cfp-cardtop">
-                <span className="cfp-badge">{p.paper_type}</span>
-                <span className="cfp-year">{p.year}</span>
-              </div>
-              <h3 className="cfp-title">{p.title}</h3>
-              <a
-                className="cfp-dl"
-                href={urlFor(p.file_path)}
-                target="_blank"
-                rel="noopener noreferrer"
+          {papers.map((p) => {
+            const locked = isLocked(p, isPro);
+            return (
+              <article
+                key={p.id}
+                className={"cfp-card" + (locked ? " cfp-card--locked" : "")}
               >
-                Download PDF
-              </a>
-            </article>
-          ))}
+                <div className={locked ? "cfp-blur" : undefined}>
+                  <div className="cfp-cardtop">
+                    <span className="cfp-badge">{p.paper_type}</span>
+                    <span className="cfp-year">{p.year}</span>
+                  </div>
+                  <h3 className="cfp-title">{p.title}</h3>
+                </div>
+
+                {locked ? (
+                  <>
+                    <div className="cfp-lockwrap">
+                      <span className="cfp-lock">Pro only</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="cfp-dl cfp-dl--locked"
+                      onClick={() => {
+                        window.dispatchEvent(new CustomEvent("cf:upgrade"));
+                        alert(
+                          "This paper is part of CramForge Pro.\n\nUpgrade in the Account tab to unlock every practice exam."
+                        );
+                      }}
+                    >
+                      Unlock with Pro
+                    </button>
+                  </>
+                ) : (
+                  <a
+                    className="cfp-dl"
+                    href={urlFor(p.file_path)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Download PDF
+                  </a>
+                )}
+              </article>
+            );
+          })}
         </div>
       )}
     </section>
@@ -212,7 +253,7 @@ const CSS = `
   .cfp-col--coral { border-left: 1.5px solid var(--line); padding-left: 30px; }
 }
 
-.cfp-colhead { margin-bottom: 18px; }
+.cfp-colhead { margin-bottom: 18px; min-height: 104px; }
 .cfp-h2 {
   font: 700 26px/1.2 Spectral, Georgia, serif;
   margin: 0; padding-bottom: 8px; border-bottom: 2px solid currentColor;
@@ -227,17 +268,34 @@ const CSS = `
 }
 .cfp-note {
   font: 400 12px/1.45 Inter, system-ui, sans-serif;
-  color: var(--coral); margin: 6px 0 0;
+  color: var(--coral); margin: 6px 0 0; min-height: 17px;
 }
 
-.cfp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+/* grid-auto-rows keeps every card the same height, so rows in the two
+   columns line up horizontally instead of drifting apart. */
+.cfp-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 16px; grid-auto-rows: 232px;
+}
 @media (max-width: 760px) { .cfp-grid { grid-template-columns: 1fr; } }
 
 .cfp-card {
+  position: relative; overflow: hidden;
   border: 1.5px solid var(--navy); border-radius: 3px; background:#fff;
   padding: 16px; display: flex; flex-direction: column; gap: 12px;
 }
 .cfp-col--coral .cfp-card { border-color: var(--coral); }
+.cfp-card--locked { background:#FBFAF7; }
+
+.cfp-blur { filter: blur(3.5px); opacity: .55; user-select: none; pointer-events: none; }
+
+.cfp-lockwrap { flex: 1; display: flex; align-items: center; justify-content: center; }
+.cfp-lock {
+  font: 700 11px/1 "IBM Plex Mono", ui-monospace, monospace;
+  letter-spacing: .1em; text-transform: uppercase;
+  color:#fff; background: var(--coral);
+  padding: 7px 12px; border-radius: 2px;
+}
 
 .cfp-cardtop { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .cfp-badge {
@@ -252,17 +310,21 @@ const CSS = `
 
 .cfp-title {
   font: 400 15px/1.4 Inter, system-ui, sans-serif;
-  color: var(--ink); margin: 0; flex: 1;
+  color: var(--ink); margin: 10px 0 0;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .cfp-dl {
-  display: block; text-align: center;
+  display: block; text-align: center; margin-top: auto;
   font: 700 12px/1 "IBM Plex Mono", ui-monospace, monospace;
   letter-spacing: .08em; text-transform: uppercase;
   color: var(--navy); text-decoration: underline;
   padding: 12px; border: 1.5px solid var(--navy); border-radius: 2px;
+  background: none; width: 100%; cursor: pointer;
 }
 .cfp-dl:hover { background: var(--navy); color:#fff; }
 .cfp-col--coral .cfp-dl { color: var(--coral); border-color: var(--coral); }
 .cfp-col--coral .cfp-dl:hover { background: var(--coral); color:#fff; }
+.cfp-dl--locked { text-decoration: none; }
 `;

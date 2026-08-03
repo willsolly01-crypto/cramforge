@@ -15,12 +15,14 @@ const isCramForge = (r) =>
 // Paper A — Exam 1, Exam 2 and its worked solutions. Papers B and C, the
 // formula sheet and the guide are Pro-only. That's 3 free of 11.
 //
+// Matched on file_path, NOT title, so renaming papers in the database
+// can never accidentally unlock them.
 // To also free the formula sheet and guide, change the test to:
-//   !(FREE_CRAMFORGE.test(title) || r.paper_type === "Reference")
-const FREE_CRAMFORGE = /Paper A\b/;
+//   !(FREE_CRAMFORGE.test(path) || r.paper_type === "Reference")
+const FREE_CRAMFORGE = /Methods-A-/;
 
 const isLocked = (r, isPro) =>
-  !isPro && isCramForge(r) && !FREE_CRAMFORGE.test(String(r.title || ""));
+  !isPro && isCramForge(r) && !FREE_CRAMFORGE.test(String(r.file_path || ""));
 
 export default function Papers({ isPro = false }) {
   const [rows, setRows] = useState([]);

@@ -108,11 +108,14 @@ export default function App() {
                 units: { ...serverState.units, ...local.units },
                 activeUnitId: serverState.activeUnitId || local.activeUnitId,
               };
+              console.log("[App] State merge:", { local: local.units, server: serverState.units, merged: merged.units });
               saveState(merged);
               return merged;
             });
           }
-        }).catch(() => {});
+        }).catch((e) => {
+          console.error("[App] loadServerState failed:", e);
+        });
 
         // Load profile info for social features
         fetchProfileInfo();

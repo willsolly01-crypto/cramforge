@@ -4,7 +4,8 @@
       "Bash(git add *)",
       "Bash(git commit -m 'Fix: sync materials immediately after upload *)",
       "Bash(git push *)",
-      "Bash(git commit -m 'Fix: preserve local materials when merging server state *)"
+      "Bash(git commit -m 'Fix: preserve local materials when merging server state *)",
+      "Bash(git commit -m 'Debug: log state merge to diagnose materials issue *)"
     ]
   }
 }

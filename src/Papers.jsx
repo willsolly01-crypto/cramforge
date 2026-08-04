@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabase";
 
 const BUCKET = "past-papers";
@@ -119,10 +119,10 @@ function buildGroups(list) {
   return groups;
 }
 
-// Row width = the biggest set, clamped so cards never get too narrow.
-// Adding an Exam 3 widens every row to 4 automatically.
+// Row width = the biggest set in this column, capped at 4.
+// A column whose groups hold one paper each renders full-width cards.
 const colsFor = (groups) =>
-  Math.max(2, Math.min(4, ...[Math.max(...groups.map((g) => g.items.length), 2)]));
+  Math.min(4, Math.max(1, ...groups.map((g) => g.items.length)));
 
 export default function Papers({ isPro = false }) {
   const [rows, setRows] = useState([]);
@@ -130,35 +130,47 @@ export default function Papers({ isPro = false }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const list = await loadPapers();
-        if (cancelled) return;
-
-        setRows(list);
-
+  const load = useCallback(async ({ quiet = false } = {}) => {
+    try {
+      if (!quiet) setLoading(true);
+      const list = await loadPapers();
+      setRows(list);
+      // Keep the user's current subject if it still exists after the refetch.
+      setSubject((prev) => {
+        if (prev && list.some((r) => r.subject === prev)) return prev;
         const subjects = [...new Set(list.map((r) => r.subject))].sort();
-        setSubject(
+        return (
           subjects.find((s) => s.toLowerCase().includes("methods")) ||
-            subjects[0] ||
-            ""
+          subjects[0] ||
+          ""
         );
-        setLoading(false);
-      } catch (e) {
-        if (cancelled) return;
-        console.error("[Papers] load failed:", e);
-        setError(e.message || "Unknown error");
-        setLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
+      });
+      setError("");
+    } catch (e) {
+      console.error("[Papers] load failed:", e);
+      setError(e.message || "Unknown error");
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // Papers added in Supabase while the tab sits open would otherwise need a
+  // hard refresh. Refetch quietly whenever the tab becomes visible again.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") load({ quiet: true });
+    };
+    window.addEventListener("focus", onVisible);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("focus", onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [load]);
 
   const subjects = useMemo(
     () => [...new Set(rows.map((r) => r.subject))].sort(),

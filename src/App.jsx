@@ -105,7 +105,7 @@ export default function App() {
             setState((local) => {
               const merged = {
                 ...serverState,
-                units: { ...local.units, ...serverState.units },
+                units: { ...serverState.units, ...local.units },
                 activeUnitId: serverState.activeUnitId || local.activeUnitId,
               };
               saveState(merged);

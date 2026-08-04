@@ -165,7 +165,11 @@ export default function App() {
     saveState(next);
     if (session) {
       clearTimeout(syncTimer.current);
-      syncTimer.current = setTimeout(() => syncState(next).catch(() => {}), 2000);
+      // Sync immediately if materials changed, else debounce to 2s
+      const hasNewMaterials = (next.units[next.activeUnitId]?.materials?.length || 0) >
+        (state.units[state.activeUnitId]?.materials?.length || 0);
+      const delay = hasNewMaterials ? 0 : 2000;
+      syncTimer.current = setTimeout(() => syncState(next).catch(() => {}), delay);
     }
   };
 

@@ -1,0 +1,23 @@
+Install into the cramforge repo
+===============================
+
+Unzip at the repo root. You get:
+
+  .claude/skills/vce-exam-authoring/SKILL.md      the skill Claude Code reads
+  .claude/skills/vce-exam-authoring/exam_lib.py   the render engine + diagram
+                                                  primitives used by the
+                                                  Physics papers
+  tools/check_paper.py                            the validator
+
+Claude Code picks up .claude/skills automatically — no config needed. Ask it
+something like "write a Chemistry practice paper A" and it will load the skill.
+
+To check a paper before building:
+  python3 tools/check_paper.py content_a
+
+Exit code 1 means a real error. Warnings are worth a look but do not block.
+
+Then commit:
+  git add .claude tools
+  git commit -m "Add VCE exam authoring skill and paper validator"
+  git push

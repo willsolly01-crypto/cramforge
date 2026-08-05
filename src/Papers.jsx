@@ -20,7 +20,7 @@ const isCramForge = (r) =>
 // sample; add a subject here when its Paper A goes live.
 // To also free the formula sheet and guide, change the test to:
 //   !(FREE_CRAMFORGE.test(path) || r.paper_type === "Reference")
-const FREE_CRAMFORGE = /Methods-A-|Physics-A-|General-A-/;
+const FREE_CRAMFORGE = /Methods-A-|Physics-A-|General-A-|Accounting-A-|BusinessManagement-A-/;
 
 const isLocked = (r, isPro) =>
   !isPro && isCramForge(r) && !FREE_CRAMFORGE.test(String(r.file_path || ""));

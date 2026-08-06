@@ -250,6 +250,13 @@ export default function Papers({ isPro = false }) {
   );
 }
 
+// Row width = the biggest group in this column, so a subject where every
+// year has 3 items (e.g. Methods: Exam 1, Exam 2, Solutions) gets 3 equal
+// columns, while a subject with 1 item per group (e.g. Biology VCE) gets a
+// single full-width card and no dead space.
+const colsFor = (groups) =>
+  Math.min(4, Math.max(1, ...groups.map((g) => g.items.length)));
+
 function Column({ heading, sub, tone, note, papers, urlFor, isPro, empty }) {
   return (
     <section className={`cfp-col cfp-col--${tone}`}>
@@ -264,7 +271,11 @@ function Column({ heading, sub, tone, note, papers, urlFor, isPro, empty }) {
       ) : (
         <div className="cfp-groups">
           {papers.map((group) => (
-            <div key={group.key} className="cfp-grid">
+            <div
+              key={group.key}
+              className="cfp-grid"
+              style={{ "--cols": colsFor(papers) }}
+            >
               {group.items.map((p) => {
                 const locked = isLocked(p, isPro);
                 return (
@@ -368,19 +379,21 @@ const CSS = `
    --cols is set inline from the largest set, so adding an Exam 3
    widens every row automatically. */
 .cfp-groups { display: flex; flex-direction: column; gap: clamp(10px, 2vw, 16px); }
-/* auto-fill picks however many equal-width cards fit the column at the
-   current viewport width, so VCE (usually one card per group) and
-   CramForge (several per group) end up with identically sized cards,
-   and the count adjusts itself on every screen size without a
-   fixed --cols value or a hard mobile breakpoint. */
+/* --cols is set per group from colsFor: a group of 3 (e.g. Methods'
+   Exam 1 / Exam 2 / Solutions) renders 3 equal columns; a group of 1
+   renders one full-width card, so there is never a leftover gap. */
 .cfp-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr));
+  grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr));
   gap: clamp(10px, 2vw, 16px);
+}
+/* Phones: always stack, regardless of how many columns the group has. */
+@media (max-width: 700px) {
+  .cfp-grid { grid-template-columns: 1fr !important; }
 }
 
 .cfp-card {
-  position: relative; overflow: hidden;
+  position: relative; overflow: hidden; height: 100%; min-height: 200px;
   border: 1.5px solid var(--navy); border-radius: 3px; background:#fff;
   padding: 16px; display: flex; flex-direction: column; gap: 12px;
 }

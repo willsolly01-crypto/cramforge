@@ -119,11 +119,6 @@ function buildGroups(list) {
   return groups;
 }
 
-// Row width = the biggest set in this column, capped at 4.
-// A column whose groups hold one paper each renders full-width cards.
-const colsFor = (groups) =>
-  Math.min(4, Math.max(1, ...groups.map((g) => g.items.length)));
-
 export default function Papers({ isPro = false }) {
   const [rows, setRows] = useState([]);
   const [subject, setSubject] = useState("");
@@ -269,11 +264,7 @@ function Column({ heading, sub, tone, note, papers, urlFor, isPro, empty }) {
       ) : (
         <div className="cfp-groups">
           {papers.map((group) => (
-            <div
-              key={group.key}
-              className="cfp-grid"
-              style={{ "--cols": colsFor(papers) }}
-            >
+            <div key={group.key} className="cfp-grid">
               {group.items.map((p) => {
                 const locked = isLocked(p, isPro);
                 return (
@@ -376,13 +367,17 @@ const CSS = `
 /* One grid per group = one row per paper set (or per year).
    --cols is set inline from the largest set, so adding an Exam 3
    widens every row automatically. */
-.cfp-groups { display: flex; flex-direction: column; gap: 16px; }
+.cfp-groups { display: flex; flex-direction: column; gap: clamp(10px, 2vw, 16px); }
+/* auto-fill picks however many equal-width cards fit the column at the
+   current viewport width, so VCE (usually one card per group) and
+   CramForge (several per group) end up with identically sized cards,
+   and the count adjusts itself on every screen size without a
+   fixed --cols value or a hard mobile breakpoint. */
 .cfp-grid {
   display: grid;
-  grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
-  gap: 16px; grid-auto-rows: 232px;
+  grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr));
+  gap: clamp(10px, 2vw, 16px);
 }
-@media (max-width: 760px) { .cfp-grid { grid-template-columns: 1fr; } }
 
 .cfp-card {
   position: relative; overflow: hidden;

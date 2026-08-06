@@ -1,21 +1,18 @@
 // CramForge Service Worker
-// Strategy: network-first for navigation + API; cache-first for static assets.
-// This enables offline fallback and makes the app installable as a PWA.
-
-const CACHE = "cramforge-v2";
+// Network-only for cross-origin (Supabase, Stripe) and /api/; network-first
+// for navigation; cache-first for same-origin static assets only.
+// v3 — v2 cached cross-origin API responses, so the papers list was served
+// from cache indefinitely. Bumping the name purges those entries.
+const CACHE = "cramforge-v3";
 const OFFLINE_PAGE = "/";
 
-// ── Install: pre-cache shell ────────────────────────────────────────────────
 self.addEventListener("install", (e) => {
   self.skipWaiting();
   e.waitUntil(
-    caches.open(CACHE).then((c) =>
-      c.addAll([OFFLINE_PAGE]).catch(() => {})  // best-effort
-    )
+    caches.open(CACHE).then((c) => c.addAll([OFFLINE_PAGE]).catch(() => {}))
   );
 });
 
-// ── Activate: clean old caches ──────────────────────────────────────────────
 self.addEventListener("activate", (e) => {
   e.waitUntil(
     caches
@@ -23,19 +20,18 @@ self.addEventListener("activate", (e) => {
       .then((keys) =>
         Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
       )
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-// ── Fetch ──────────────────────────────────────────────────────────────────
 self.addEventListener("fetch", (e) => {
   const { request } = e;
   const url = new URL(request.url);
 
-  // Pass API calls straight through — never cache auth'd requests
+  if (request.method !== "GET") return;
+  if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/api/")) return;
 
-  // Navigation (HTML pages): network-first, fall back to cached shell
   if (request.mode === "navigate") {
     e.respondWith(
       fetch(request)
@@ -46,17 +42,18 @@ self.addEventListener("fetch", (e) => {
           }
           return res;
         })
-        .catch(() => caches.match(OFFLINE_PAGE))
+        .catch(() =>
+          caches.match(request).then((r) => r || caches.match(OFFLINE_PAGE))
+        )
     );
     return;
   }
 
-  // Static assets (JS, CSS, fonts, images): cache-first
   e.respondWith(
     caches.match(request).then((cached) => {
       if (cached) return cached;
       return fetch(request).then((res) => {
-        if (res.ok && request.method === "GET") {
+        if (res.ok && res.type === "basic") {
           const clone = res.clone();
           caches.open(CACHE).then((c) => c.put(request, clone));
         }

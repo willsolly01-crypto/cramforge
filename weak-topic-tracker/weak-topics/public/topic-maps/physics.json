@@ -1,0 +1,17 @@
+{
+  "subject": "Physics",
+  "topics": [
+    "Motion & momentum",
+    "Fields (grav / electric / magnetic)",
+    "Induction & transmission",
+    "Special relativity",
+    "Light & matter",
+    "Measurement & uncertainty"
+  ],
+  "papers": {
+    "Physics-A-Exam": {},
+    "Physics-B-Exam": {},
+    "Physics-C-Exam": {}
+  },
+  "_note": "Fill each paper: MC questions as '1'-'20', short answer as 'SA1'-'SA13' (or however your papers number them). Topics above match your paper blueprint — rename freely; the tracker just uses the strings."
+}

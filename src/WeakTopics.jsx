@@ -1,14 +1,17 @@
 // Weak Topic Tracker — log wrong questions from CramForge papers, get targeted
 // practice, fill the mastery bar. Leitner spaced repetition (box 0-4 per topic).
+// Topic lookup reads your existing `question_topics` table directly.
 //
 // WIRING (2 things to check):
 // 1. The supabase import path below — point it at your existing client.
-// 2. generatePractice() — match the body/response to your api/generate.js contract.
+// 2. generatePractice() below calls /api/ai?op=generate with your real
+//    contract (unitName, notes, topics, weakTopics, count). It needs SOME
+//    notes text to generate from — see the sourceNotes() note below.
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabase"; // <-- adjust to your client's path
 
-const SUBJECTS = ["methods", "physics"]; // add biology/english/etc as you create maps
+const SUBJECTS = ["Mathematical Methods", "Physics"]; // must match question_topics.subject exactly
 const BOX_LABEL = ["Shaky", "Learning", "Improving", "Solid", "Mastered"];
 const XP_PER_CORRECT = 10;
 const XP_PER_BOX = 25;
@@ -29,29 +32,73 @@ async function api(method, body) {
   return res.json();
 }
 
-// ---- ADAPTER: match this to your api/generate.js ---------------------------
+// generate needs some source "notes" text to write questions from — it's not
+// a bare topic-only generator. A student practising a weak topic doesn't
+// have fresh notes handy, so we hand it a short instruction block naming the
+// topic and let the subject-area prompt (already in api/ai.js) do the rest.
+// This costs one "gen" credit against the free-tier limit, same as any
+// other generation — same cost surface, nothing new to protect.
+function syntheticNotes(subject, topic) {
+  return `VCE ${subject} — focused revision on the topic "${topic}". ` +
+    `Write self-contained questions that test this topic specifically, ` +
+    `at the standard of a real VCE exam question.`;
+}
+
 async function generatePractice(subject, topic) {
   const headers = { "Content-Type": "application/json", ...(await authHeader()) };
-  const res = await fetch("/api/generate", {
+  const res = await fetch("/api/ai?op=generate", {
     method: "POST",
     headers,
-    body: JSON.stringify({ subject, topics: [topic], count: 3, difficulty: "exam" }),
+    body: JSON.stringify({
+      unitName: subject,
+      notes: syntheticNotes(subject, topic),
+      topics: [topic],
+      weakTopics: [topic],
+      difficulty: "medium",
+      count: 3,
+    }),
   });
-  if (!res.ok) throw new Error("Generation failed — free limit hit, or adapter mismatch");
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Generation failed");
   const data = await res.json();
-  // Accept the common shapes; adjust if yours differs.
-  const qs = data.questions || data.items || data.result || [];
-  return qs.map((q, i) => ({
-    id: i,
-    text: q.question || q.text || q.stem || String(q),
-    solution: q.solution || q.answer || q.worked_solution || "",
-  }));
+  const qs = data.questions || [];
+  return qs.map((q, i) => ({ id: i, text: q.text, solution: q.solution, marks: q.marks }));
 }
-// ----------------------------------------------------------------------------
+
+// Look up topics for a set of {paper_code, question_no} pairs directly
+// against question_topics — same table your paper cards already read from.
+async function fetchTopicsForPaper(paperCode) {
+  const { data, error } = await supabase
+    .from("question_topics")
+    .select("question_no, section, topic, marks")
+    .eq("paper_code", paperCode)
+    .order("question_no");
+  if (error) throw error;
+  return data || [];
+}
+
+async function fetchPaperCodes(subject) {
+  const { data, error } = await supabase
+    .from("question_topics")
+    .select("paper_code")
+    .eq("subject", subject);
+  if (error) throw error;
+  return [...new Set((data || []).map((r) => r.paper_code))].sort();
+}
+
+async function fetchDistinctTopics(subject) {
+  const { data, error } = await supabase
+    .from("question_topics")
+    .select("topic")
+    .eq("subject", subject);
+  if (error) throw error;
+  return [...new Set((data || []).map((r) => r.topic))].sort();
+}
 
 export default function WeakTopics() {
-  const [subject, setSubject] = useState("methods");
-  const [map, setMap] = useState(null);
+  const [subject, setSubject] = useState(SUBJECTS[0]);
+  const [topics, setTopics] = useState([]);      // distinct topics for this subject
+  const [paperCodes, setPaperCodes] = useState([]); // paper_codes with rows in question_topics
+  const [paperQuestions, setPaperQuestions] = useState([]); // [{question_no, topic}] for selected paper
   const [rows, setRows] = useState([]);
   const [tab, setTab] = useState("dashboard"); // dashboard | log | practice
   const [busy, setBusy] = useState(false);
@@ -69,24 +116,29 @@ export default function WeakTopics() {
   const [sessionResults, setSessionResults] = useState([]);
 
   useEffect(() => {
-    fetch(`/topic-maps/${subject}.json`)
-      .then((r) => r.json())
-      .then((m) => {
-        setMap(m);
-        const first = Object.keys(m.papers).find((p) => Object.keys(m.papers[p]).length);
-        setPaper(first || Object.keys(m.papers)[0] || "");
+    setError("");
+    Promise.all([fetchDistinctTopics(subject), fetchPaperCodes(subject)])
+      .then(([t, codes]) => {
+        setTopics(t);
+        setPaperCodes(codes);
+        setPaper(codes[0] || "");
+        if (!t.length) setError(`No question_topics rows for "${subject}" yet`);
       })
-      .catch(() => setError(`No topic map for ${subject} yet`));
+      .catch((e) => setError(e.message));
     api("GET").then((d) => setRows(d.rows)).catch((e) => setError(e.message));
   }, [subject]);
 
+  useEffect(() => {
+    if (!paper) { setPaperQuestions([]); return; }
+    fetchTopicsForPaper(paper).then(setPaperQuestions).catch((e) => setError(e.message));
+  }, [paper]);
+
   const subjectRows = useMemo(
-    () => rows.filter((r) => r.subject.toLowerCase() === subject),
+    () => rows.filter((r) => r.subject === subject),
     [rows, subject]
   );
 
   const stats = useMemo(() => {
-    const topics = map?.topics || [];
     const byTopic = Object.fromEntries(subjectRows.map((r) => [r.topic, r]));
     const today = new Date().toISOString().slice(0, 10);
     const due = subjectRows.filter((r) => r.next_due <= today && r.box < 4);
@@ -97,18 +149,16 @@ export default function WeakTopics() {
     const xp = subjectRows.reduce((s, r) => s + r.correct * XP_PER_CORRECT + r.box * XP_PER_BOX, 0);
     const bestStreak = Math.max(0, ...subjectRows.map((r) => r.streak));
     return { topics, byTopic, due, tracked, masteryPct, xp, bestStreak };
-  }, [map, subjectRows]);
+  }, [topics, subjectRows]);
 
   async function saveWrong() {
-    const qmap = map.papers[paper] || {};
     const entries = Object.keys(ticked)
-      .filter((q) => ticked[q])
-      .map((q) => ({ topic: qmap[q], ref: `${paper}:${q}` }))
-      .filter((e) => e.topic);
+      .filter((qn) => ticked[qn])
+      .map((qn) => ({ paper_code: paper, question_no: qn }));
     if (!entries.length) return;
     setBusy(true); setError("");
     try {
-      await api("POST", { action: "log_wrong", subject: map.subject, entries });
+      await api("POST", { action: "log_wrong", subject, entries });
       const d = await api("GET");
       setRows(d.rows);
       setTicked({});
@@ -121,7 +171,7 @@ export default function WeakTopics() {
     setBusy(true); setError(""); setQuestions([]); setSessionResults([]);
     setPracticeTopic(topic); setQIndex(0); setRevealed(false); setTab("practice");
     try {
-      setQuestions(await generatePractice(map.subject, topic));
+      setQuestions(await generatePractice(subject, topic));
     } catch (e) { setError(e.message); }
     setBusy(false);
   }
@@ -131,13 +181,12 @@ export default function WeakTopics() {
     setRevealed(false);
     setQIndex((i) => i + 1);
     try {
-      await api("POST", { action: "result", subject: map.subject, topic: practiceTopic, correct });
+      await api("POST", { action: "result", subject, topic: practiceTopic, correct });
       const d = await api("GET");
       setRows(d.rows);
     } catch (e) { setError(e.message); }
   }
 
-  const paperQs = map && paper ? Object.keys(map.papers[paper] || {}) : [];
   const q = questions[qIndex];
 
   return (
@@ -150,7 +199,7 @@ export default function WeakTopics() {
           <p className="wt-sub">Mark what you got wrong. Practise it until it isn't.</p>
         </div>
         <select value={subject} onChange={(e) => setSubject(e.target.value)}>
-          {SUBJECTS.map((s) => <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>)}
+          {SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
       </header>
 
@@ -226,32 +275,37 @@ export default function WeakTopics() {
         </div>
       )}
 
-      {tab === "log" && map && (
+      {tab === "log" && (
         <div className="wt-panel">
-          <label className="wt-label">Which paper did you sit?</label>
-          <select value={paper} onChange={(e) => { setPaper(e.target.value); setTicked({}); }}>
-            {Object.keys(map.papers).map((p) => (
-              <option key={p} value={p} disabled={!Object.keys(map.papers[p]).length}>
-                {p}{!Object.keys(map.papers[p]).length ? " (map not filled yet)" : ""}
-              </option>
-            ))}
-          </select>
-          <label className="wt-label">Tick every question you dropped marks on</label>
-          <div className="wt-qgrid">
-            {paperQs.map((qn) => (
-              <button
-                key={qn}
-                className={`wt-q ${ticked[qn] ? "wrong" : ""}`}
-                title={map.papers[paper][qn]}
-                onClick={() => setTicked((s) => ({ ...s, [qn]: !s[qn] }))}
-              >
-                {qn}
+          {!paperCodes.length ? (
+            <p className="wt-loading">
+              No papers with topic data for {subject} yet. Add rows to <code>question_topics</code> for
+              a paper (see UPLOADING-NEW-PAPERS.md pattern you already use) and it'll show up here.
+            </p>
+          ) : (
+            <>
+              <label className="wt-label">Which paper did you sit?</label>
+              <select value={paper} onChange={(e) => { setPaper(e.target.value); setTicked({}); }}>
+                {paperCodes.map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+              <label className="wt-label">Tick every question you dropped marks on</label>
+              <div className="wt-qgrid">
+                {paperQuestions.map(({ question_no, topic }) => (
+                  <button
+                    key={question_no}
+                    className={`wt-q ${ticked[question_no] ? "wrong" : ""}`}
+                    title={topic}
+                    onClick={() => setTicked((s) => ({ ...s, [question_no]: !s[question_no] }))}
+                  >
+                    {question_no}
+                  </button>
+                ))}
+              </div>
+              <button className="wt-primary" onClick={saveWrong} disabled={busy || !Object.values(ticked).some(Boolean)}>
+                {busy ? "Saving…" : `Save ${Object.values(ticked).filter(Boolean).length} wrong`}
               </button>
-            ))}
-          </div>
-          <button className="wt-primary" onClick={saveWrong} disabled={busy || !Object.values(ticked).some(Boolean)}>
-            {busy ? "Saving…" : `Save ${Object.values(ticked).filter(Boolean).length} wrong`}
-          </button>
+            </>
+          )}
         </div>
       )}
 

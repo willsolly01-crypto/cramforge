@@ -16,6 +16,7 @@ import QuestionBank from "./QuestionBank.jsx";
 import QuickStudy  from "./QuickStudy.jsx";
 import StudyFeed   from "./StudyFeed.jsx";
 import Papers      from "./Papers.jsx";
+import WeakTopics  from "./WeakTopics.jsx";
 import OnboardingTour, { shouldShowOnboarding } from "./OnboardingTour.jsx";
 import { supabase } from "./supabase.js";
 
@@ -336,7 +337,7 @@ export default function App() {
             <button
               key={u.id}
               className={"unit-btn" + (state.activeUnitId === u.id ? " active" : "")}
-              onClick={() => { persist({ ...state, activeUnitId: u.id }); if (tab === "study" || tab === "bank" || tab === "account" || tab === "papers" || tab === "feed") setTab("materials"); }}
+              onClick={() => { persist({ ...state, activeUnitId: u.id }); if (tab === "study" || tab === "bank" || tab === "account" || tab === "papers" || tab === "feed" || tab === "weaktopics") setTab("materials"); }}
             >
               {u.name}
             </button>
@@ -409,10 +410,17 @@ export default function App() {
               style={TRIO_BTN}
               onClick={() => setTab("papers")}
             >
-              Past<br />papers
+             Past<br />papers
             </button>
           </div>
 
+          <button
+            className={"btn sm ghost" + (tab === "weaktopics" ? " active" : "")}
+            style={{ width: "100%", marginTop: 6 }}
+            onClick={() => setTab("weaktopics")}
+          >
+            Weak Topics
+          </button>
           <button
             className={"btn sm ghost" + (tab === "account" ? " active" : "")}
             style={{ width: "100%", marginTop: 10 }}
@@ -452,6 +460,12 @@ export default function App() {
             <>
               {unitNav}
               <Papers isPro={isPro} />
+            </>
+          )}
+	  {tab === "weaktopics" && (
+            <>
+              {unitNav}
+              <WeakTopics />
             </>
           )}
 

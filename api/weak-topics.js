@@ -51,15 +51,31 @@ export default async function handler(req, res) {
   if (!subject) return res.status(400).json({ error: "subject required" });
 
   if (action === "log_wrong") {
-    // entries: [{topic: "Calculus", ref: "Methods-A-Exam1:7"}, ...]
-    const entries = Array.isArray(body.entries) ? body.entries.slice(0, 60) : [];
-    if (!entries.length) return res.status(400).json({ error: "entries required" });
+    // entries: [{paper_code: "Methods-A-Exam1", question_no: "6c"}, ...]
+    // Topic is looked up from your existing question_topics table — no
+    // duplicate topic data to maintain, and it covers every paper you've
+    // already added rows for.
+    const raw = Array.isArray(body.entries) ? body.entries.slice(0, 60) : [];
+    if (!raw.length) return res.status(400).json({ error: "entries required" });
 
-    // Group refs by topic so one wrong exam produces one upsert per topic.
+    const paperCodes = [...new Set(raw.map((e) => e.paper_code).filter(Boolean))];
+    const { data: lookup, error: lookupErr } = await supa
+      .from("question_topics")
+      .select("paper_code, question_no, topic")
+      .in("paper_code", paperCodes);
+    if (lookupErr) return res.status(500).json({ error: lookupErr.message });
+
+    const topicOf = {};
+    for (const row of lookup || []) topicOf[`${row.paper_code}::${row.question_no}`] = row.topic;
+
     const byTopic = {};
-    for (const e of entries) {
-      if (!e?.topic) continue;
-      (byTopic[e.topic] ||= []).push(String(e.ref || "").slice(0, 40));
+    for (const e of raw) {
+      const topic = topicOf[`${e.paper_code}::${e.question_no}`];
+      if (!topic) continue; // question_topics has no row for this one yet — skip, don't guess
+      (byTopic[topic] ||= []).push(`${e.paper_code}:${e.question_no}`.slice(0, 40));
+    }
+    if (!Object.keys(byTopic).length) {
+      return res.status(400).json({ error: "None of those questions are in question_topics yet." });
     }
 
     for (const [topic, refs] of Object.entries(byTopic)) {
@@ -80,10 +96,24 @@ export default async function handler(req, res) {
         missed,
         next_due: addDays(0),
         updated_at: new Date().toISOString(),
-      });
-      if (error) return res.status(500).json({ error: error.message });
+      }, { onConflict: "user_id,subject,topic" });
+      if (error) {
+        console.error("weak_topics upsert failed:", error);
+        return res.status(500).json({ error: error.message });
+      }
     }
-    return res.status(200).json({ ok: true });
+    // Diagnostic: verify what actually landed, and report it.
+    const { data: check } = await supa
+      .from("weak_topics")
+      .select("topic, box, wrong")
+      .eq("user_id", uid).eq("subject", subject);
+    return res.status(200).json({
+      ok: true,
+      sent: raw.length,
+      matchedTopics: Object.keys(byTopic),
+      rowsNow: (check || []).length,
+      rows: check || [],
+    });
   }
 
   if (action === "result") {
@@ -108,8 +138,11 @@ export default async function handler(req, res) {
       missed: prev.missed,
       next_due: addDays(correct ? INTERVALS[box] : 0),
       updated_at: new Date().toISOString(),
-    });
-    if (error) return res.status(500).json({ error: error.message });
+    }, { onConflict: "user_id,subject,topic" });
+    if (error) {
+      console.error("weak_topics result upsert failed:", error);
+      return res.status(500).json({ error: error.message });
+    }
     return res.status(200).json({ ok: true, box });
   }
 

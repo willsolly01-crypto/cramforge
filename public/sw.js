@@ -3,7 +3,7 @@
 // for navigation; cache-first for same-origin static assets only.
 // v3 — v2 cached cross-origin API responses, so the papers list was served
 // from cache indefinitely. Bumping the name purges those entries.
-const CACHE = "cramforge-v3";
+const CACHE = "cramforge-v4";
 const OFFLINE_PAGE = "/";
 
 self.addEventListener("install", (e) => {
